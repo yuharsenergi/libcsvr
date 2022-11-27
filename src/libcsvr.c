@@ -277,7 +277,7 @@ static csvrHttpVersion_e getHttpVersion(char*header)
     ptr1 = strstr(header, "HTTP/");
     if(ptr1)
     {
-        ptr2 = strstr(ptr1, "\x0D\x0A");
+        ptr2 = strstr(ptr1, HEADER_SEPARATOR);
         len = (size_t)(ptr2 - ptr1);
         char *res = (char*)malloc(sizeof(char)*(len+1));
         if(res)
@@ -615,7 +615,7 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     }
 
     char *buffer = NULL;
-    size_t lenBuffer = strlen(key) + strlen(": ") + strlen(value) + strlen("\x0D\x0A") + 1;
+    size_t lenBuffer = strlen(key) + strlen(": ") + strlen(value) + strlen(HEADER_SEPARATOR) + 1;
     buffer = malloc(lenBuffer*sizeof(char));
     if(buffer == NULL)
     {
@@ -623,7 +623,7 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     }
 
     memset(buffer,0,lenBuffer);
-    snprintf(buffer, lenBuffer, "%s: %s\x0D\x0A",key,value);
+    snprintf(buffer, lenBuffer, "%s: %s%s",key,value,HEADER_SEPARATOR);
 
     char **newHeader = NULL;
     input->header.total++;
