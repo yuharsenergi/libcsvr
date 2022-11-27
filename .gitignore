@@ -57,3 +57,4 @@ unit-test/cmocka
 
 m4/
 build
+test

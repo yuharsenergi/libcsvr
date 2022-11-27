@@ -24,7 +24,7 @@
 #define HEADER_SEPARATOR          "\x0D\x0A"
 #define BODY_SEPARATOR            "\x0D\x0A\x0D\x0A"
 #define DEFAULT_MESSAGE_ALLOCATION 3
-#define DEFAULT_SERVER_NAME       PACKAGE_NAME"-"PACKAGE_VERSION
+#define DEFAULT_SERVER_NAME       CSVR_NAME"-"CSVR_VERSION
 
 #define MINIMUM_REQUEST_TYPE_LENGTH strlen("PUT")
 #define MAXIMUM_REQUEST_TYPE_LENGTH strlen("DELETE")
@@ -304,6 +304,7 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
         return csvrInvalidInput;
     }
 
+    input->serverName = strdup(DEFAULT_SERVER_NAME);
     input->port  = port;
     input->sockfd = -1;
     input->sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -357,6 +358,7 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...
         return csvrNotAnError;
     }
 
+    FREE(input->serverName);
     input->serverName = strdup(temp);
     FREE(temp);
     if(input->serverName == NULL)
@@ -469,7 +471,9 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
                     contentLength--;
                     if(contentLength <= 0)
                     {
-                        output->content = strdup(message + indexBody);
+                        output->content = calloc(contentLength + 1, sizeof(char));
+                        memset(output->content, 0, contentLength + 1);
+                        memcpy(output->content, message + indexBody, contentLength);
                         break;
                     }
                 }
@@ -527,24 +531,14 @@ csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *responseInpu
 
     char *message = NULL;
     size_t lenBody = strlen(responseInput->body);
-    char *serverName = NULL;
-    if(input->serverName != NULL)
-    {
-        serverName = strdup(input->serverName);
-    }
-    else
-    {
-        serverName = strdup(DEFAULT_SERVER_NAME);
-    }
-
-    size_t lenMessage = strlen(template) + strlen(dtime) + lenBody + strlen(serverName) + 10;
+    size_t lenMessage = strlen(template) + strlen(dtime) + lenBody + strlen(input->serverName) + 10;
 
     message = malloc((lenMessage)*sizeof(char));
     memset(message,0,lenMessage*sizeof(char));
     
     snprintf(message, lenMessage,
-        serverName,
         template, 
+        input->serverName,
         dtime, 
         lenBody,
         responseInput->body);
@@ -562,7 +556,6 @@ csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *responseInpu
         ret = csvrFailedSendData;
     }
 
-    FREE(serverName);
     FREE(message);
     return ret;
 }
@@ -705,6 +698,7 @@ int main()
     printf("Type request: %s\n",typeStringTranslator[getRequestType(header)]);
     size_t ret = getContentLength(header, strlen(header));
     printf("Result: %lu\n",ret);
+    printf("Servername %s\n",DEFAULT_SERVER_NAME);
     return 0;
 }
 #endif
