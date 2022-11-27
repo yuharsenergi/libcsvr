@@ -13,6 +13,8 @@
 
 #define HEADER_CONTENT_LENGTH_KEY "Content-Length: "
 #define HEADER_CONTENT_TYPE_KEY   "Content-Type: "
+#define HEADER_SEPARATOR          "\x0D\x0A"
+#define BODY_SEPARATOR            "\x0D\x0A\x0D\x0A"
 #define DEFAULT_MESSAGE_ALLOCATION 3
 
 #define MINIMUM_REQUEST_TYPE_LENGTH strlen("PUT")
@@ -76,139 +78,187 @@ static requestType_e getRequestType(char*header)
     return type;
 }
 
-size_t getContentLength(char*header)
+int getContentLength(char*header, size_t headerLen)
 {
-    size_t contentLength = 0;
-    size_t len = 0;
-    char buffer[10];
-
-    char *ptr1 = NULL;
-    char *ptr2 = NULL;
-    ptr1 = strstr(header, HEADER_CONTENT_LENGTH_KEY);
-    if(ptr1)
+    if(header == NULL)
     {
-        ptr2 = strstr(ptr1, "\x0D\x0A");
-        len = ptr2 - ptr1;
-        char *res = (char*)malloc(sizeof(char)*(len+1));
-        if(res)
-        {
-            strncpy(res, ptr1, len);
-            res[len] = '\0';
-            printf("%s\n",res);
-            memset(buffer, 0, sizeof(buffer));
-            memcpy(buffer, res + strlen(HEADER_CONTENT_LENGTH_KEY), sizeof(buffer));
-            contentLength = atoi(buffer);
-            free(res);
-        }
+        return errInvalidInput;
     }
 
+    int contentLength = 0;
+    char *line = NULL;
+    char buffer[100];
+    size_t index = 0;
+    size_t lastIndex = 0;
+    while(index < headerLen)
+    {
+        /* Get 0x0D 0x0A */
+        if(!memcmp(header+index, HEADER_SEPARATOR, strlen(HEADER_SEPARATOR)))
+        {
+            size_t lengthLine = index - lastIndex;
+            line = calloc((lengthLine + 1), sizeof(char));
+            if(line)
+            {
+                memset(line, 0, (lengthLine + 1));
+                memcpy(line, header + lastIndex, lengthLine);
+                if(!memcmp(line,HEADER_CONTENT_LENGTH_KEY, strlen(HEADER_CONTENT_LENGTH_KEY)))
+                {
+                    memset(buffer, 0, sizeof(buffer));
+                    snprintf(buffer,sizeof(buffer), "%s", line + strlen(HEADER_CONTENT_LENGTH_KEY));
+                    contentLength = atoi(buffer);
+                    break;
+                }
+                FREE(line);
+            }
+            lastIndex = index + strlen(HEADER_SEPARATOR);
+        }
+        index++;
+    }
+    FREE(line);
     return contentLength;
 }
 
 static contentType_e getContentType(char*header)
 {
-    contentType_e contentType = textHtml;
-    size_t len = 0;
-    char buffer[100];
-
-    char *ptr1 = NULL;
-    char *ptr2 = NULL;
-    ptr1 = strstr(header, HEADER_CONTENT_TYPE_KEY);
-    if(ptr1)
+    if(header == NULL)
     {
-        ptr2 = strstr(ptr1, "\x0D\x0A");
-        len = ptr2 - ptr1;
-        char *res = (char*)malloc(sizeof(char)*(len+1));
-        if(res)
-        {
-            strncpy(res, ptr1, len);
-            res[len] = '\0';
-            memset(buffer, 0, sizeof(buffer));
-            memcpy(buffer, res + strlen(HEADER_CONTENT_TYPE_KEY), strlen(res) - strlen(HEADER_CONTENT_TYPE_KEY));
-            int i = 0;
-            for(;i < strlen(buffer);i++)
-            {
-                char temp = 0;
-                temp = tolower(buffer[i]);
-                buffer[i] = temp;
-            }
-
-            if(!memcmp(buffer, "application/json", strlen("application/json")))
-            {
-                contentType = applicationJson;
-            }
-            else 
-            {
-                
-            }
-            free(res);
-        }
+        return errInvalidInput;
     }
+
+    contentType_e contentType = textHtml;
+    char *line = NULL;
+    char buffer[100];
+    size_t index = 0;
+    size_t lastIndex = 0;
+    size_t headerLen = strlen(header);
+    while(index < headerLen)
+    {
+        /* Get 0x0D 0x0A */
+        if(!memcmp(header+index, HEADER_SEPARATOR, strlen(HEADER_SEPARATOR)))
+        {
+            size_t lengthLine = index - lastIndex;
+            line = calloc((lengthLine + 1), sizeof(char));
+            if(line)
+            {
+                memset(line, 0, (lengthLine + 1));
+                memcpy(line, header + lastIndex, lengthLine);
+                if(!memcmp(line,HEADER_CONTENT_TYPE_KEY, strlen(HEADER_CONTENT_TYPE_KEY)))
+                {
+                    memset(buffer, 0, sizeof(buffer));
+                    snprintf(buffer,sizeof(buffer), "%s", line + strlen(HEADER_CONTENT_TYPE_KEY));
+                    size_t bufferlen = strlen(buffer);
+                    size_t i = 0;
+                    for(;i < bufferlen; i++)
+                    {
+                        char c = buffer[i];
+                        buffer[i] = (char)tolower(c);
+                    }
+                    if(!memcmp(buffer, "application/json", strlen("application/json")))
+                    {
+                        contentType = applicationJson;
+                    }
+                    break;
+                }
+                FREE(line);
+            }
+            lastIndex = index + strlen(HEADER_SEPARATOR);
+        }
+        index++;
+    }
+    FREE(line);
 
     return contentType;
 }
 
 static size_t getHeaderKeyValue(char*header, char*key, char *dest, size_t maxlen)
 {
-
-    size_t len = 0;
-    size_t ret = 0;
-    char keyBuffer[100];
-    char buffer[10];
-    memset(buffer, 0, sizeof(buffer));
-    memset(keyBuffer, 0, sizeof(keyBuffer));
-    snprintf(keyBuffer, sizeof(keyBuffer), "%s: ",key);
-    char *ptr1 = NULL;
-    char *ptr2 = NULL;
-    do
+    if(header == NULL || key == NULL || dest == NULL)
     {
-        ptr1 = strstr(header, keyBuffer);
-        if(ptr1)
+        return errInvalidInput;
+    }
+
+    size_t ret = 0;
+    char *line = NULL;
+    char buffer[100];
+    size_t index = 0;
+    size_t lastIndex = 0;
+    size_t headerLen = strlen(header);
+    while(index < headerLen)
+    {
+        /* Get 0x0D 0x0A */
+        if(!memcmp(header+index, HEADER_SEPARATOR, strlen(HEADER_SEPARATOR)))
         {
-            ptr2 = strstr(ptr1, "\x0D\x0A");
-            len = ptr2 - ptr1;
-            char *res = (char*)malloc(sizeof(char)*(len+1));
-            if(res)
+            size_t lengthLine = index - lastIndex;
+            line = calloc((lengthLine + 1), sizeof(char));
+            if(line)
             {
-                strncpy(res, ptr1, len);
-                res[len] = '\0';
-                snprintf(dest, maxlen, "%s", (res + strlen(keyBuffer)));
-                free(res);
-                ret = 1;
+                memset(line, 0, (lengthLine + 1));
+                memcpy(line, header + lastIndex, lengthLine);
+                /* Check if key found */
+                if(!memcmp(line, key, strlen(key)))
+                {
+                    memset(buffer, 0, maxlen);
+                    snprintf(dest, maxlen, "%s", line + strlen(key) + strlen(": "));
+                    ret = 1;
+                    break;
+                }
+                FREE(line);
             }
+            lastIndex = index + strlen(HEADER_SEPARATOR);
         }
-    }while(0);
+        index++;
+    }
+    FREE(line);
 
     return ret;
 }
 
-static serverErrorCode_e getRequestUriPath(char*header, requestType_e type, char*dest, size_t maxlen)
+static serverErrorCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
 {
-    size_t len = 0;
-    size_t ret = 0;
-    char buffer[10];
-    memset(buffer, 0, sizeof(buffer));
-    char *ptr1 = NULL;
-    char *ptr2 = NULL;
-
-    do
+    if(header == NULL || dest == NULL)
     {
-        ptr1 = strstr(header, " ");
-        if(ptr1)
+        return errInvalidInput;
+    }
+
+    serverErrorCode_e ret = errSystemFailure;
+    char *buffer = NULL;
+    size_t index = 0;
+    size_t firstSpaceIndex = 0;
+    size_t headerLen = strlen(header);
+    while(index < headerLen)
+    {
+        /* Get the first space */
+        if((header[index - 1] == ' ') && firstSpaceIndex == 0)
         {
-            ptr2 = strstr(ptr1, " HTTP");
-            len = ptr2 - ptr1;
-            char *res = (char*)malloc(sizeof(char)*(len+1));
-            if(res)
-            {
-                strncpy(res, ptr1, len);
-                res[len] = '\0';
-                memcpy(dest, res + strlen(typeStringTranslator[type]) + 1, maxlen);
-                free(res);
-                ret = 1;
-            }
+            firstSpaceIndex = index;
         }
-    }while(0);
+
+        if(!memcmp(header + index, " HTTP", strlen(" HTTP")))
+        {
+            /* Get The first ' HTTP' */
+            size_t lengthLine = index - firstSpaceIndex + 1;
+            buffer = calloc(lengthLine, sizeof(char));
+            if(buffer == NULL)
+            {
+                break;
+            }
+
+            memset(buffer, 0, lengthLine);
+            memcpy(buffer, header + firstSpaceIndex, lengthLine - 1);
+            
+            memset(dest,0,maxlen);
+            snprintf(dest, maxlen, "%s", buffer);
+            free(buffer);
+            ret = errSuccess;
+            break;
+        }
+        index++;
+    }
+
+    if(index == headerLen)
+    {
+        ret = errInvalidHeader;
+    }
     return ret;
 }
 
@@ -224,7 +274,7 @@ static httpVersion_e getHttpVersion(char*header)
     if(ptr1)
     {
         ptr2 = strstr(ptr1, "\x0D\x0A");
-        len = ptr2 - ptr1;
+        len = (size_t)(ptr2 - ptr1);
         char *res = (char*)malloc(sizeof(char)*(len+1));
         if(res)
         {
@@ -236,8 +286,8 @@ static httpVersion_e getHttpVersion(char*header)
             {
                 version = http1_1;
             }
-            free(res);
         }
+        FREE(res);
     }
 
     return version;
@@ -287,7 +337,7 @@ serverErrorCode_e serverInit(server_t *input, uint16_t port)
 
 serverErrorCode_e serverRead(server_t *input, request_t *output)
 {
-    if(input == NULL)
+    if(input == NULL || output == NULL)
     {
         return errInvalidInput;
     }
@@ -332,12 +382,12 @@ serverErrorCode_e serverRead(server_t *input, request_t *output)
          * Sampai return read == 0 (yang artinya, end-of-file ,EOF) atau 
          * proses pembacaan sudah selesai di batch tersebut.
          *///
-        int lenMessage = 0;
-        int retval     = 0;
-        char character = 0;
-        char *message  = NULL;
+        size_t lenMessage    = 0;
+        ssize_t retval       = 0;
+        char character       = 0;
+        char *message        = NULL;
         bool flagReadBody    = false;
-        size_t contentLength = 0;
+        int contentLength = 0;
         size_t indexBody     = 0;
 
         /* Initialize */
@@ -358,52 +408,49 @@ serverErrorCode_e serverRead(server_t *input, request_t *output)
             }
 
             message[lenMessage] = character;
-            lenMessage += retval;
-            message     = realloc(message, DEFAULT_MESSAGE_ALLOCATION+lenMessage);
+            lenMessage += (size_t)retval;
+            message     = realloc(message, (size_t)(DEFAULT_MESSAGE_ALLOCATION+lenMessage));
 
-            if((output->type == notKnown) && (strlen(message) >= MINIMUM_REQUEST_TYPE_LENGTH) && (strlen(message) < (MAXIMUM_REQUEST_TYPE_LENGTH + 1)) && (message[lenMessage] == ' '))
+            /* Finish read header */
+            if(!memcmp(message + lenMessage - strlen(BODY_SEPARATOR), BODY_SEPARATOR, strlen(BODY_SEPARATOR)))
             {
-                output->type = getRequestType(message);
-            }
+                output->header = strdup(message);
 
-            if(output->type == post)
-            {
-                /* Finish read header */
-                if(message[lenMessage-1] == 0x0A && message[lenMessage-2] == 0x0D && message[lenMessage-3] == 0x0A && message[lenMessage-4] == 0x0D)
+                /* Get request type*/
+                if(output->type == notKnown)
                 {
+                    output->type = getRequestType(message);
+                }
+                
+                output->httpVersion = getHttpVersion(message);
+                getHeaderKeyValue(output->header, "Host", output->host, sizeof(output->host));
+                getRequestUriPath(output->header, output->path, sizeof(output->path));
+                if(output->type == post)
+                {
+                    /* Parse data from header */
                     if(flagReadBody == false)
                     {
                         flagReadBody            = true;
-                        output->header          = strdup(message);
-                        indexBody               = strlen(message) - 1;
-                        output->contentType     = getContentType(message);
-                        contentLength           = getContentLength(output->header);
-                        output->contentLength   = contentLength;
-                        output->httpVersion     = getHttpVersion(message);
-                        getHeaderKeyValue(message, "Host", output->host, sizeof(output->host));
-                        getRequestUriPath(message, output->type, output->path, sizeof(output->path));
-                        continue;
+                        indexBody               = lenMessage;
+                        output->contentType     = getContentType(output->header);
+                        contentLength           = getContentLength(output->header, lenMessage);
+                        output->contentLength   = getContentLength(output->header, lenMessage);
                     }
+                    continue;
                 }
-
-                contentLength--;
-                if(contentLength <= 0)
-                {
-                    printf("Payload (%lu): %s\n",indexBody, (message + indexBody));
-                    output->content = strdup(message + indexBody);
-                    break;
-                }
+                break;
             }
             else
             {
-                /* Finish read header */
-                if(message[lenMessage-1] == 0x0A && message[lenMessage-2] == 0x0D && message[lenMessage-3] == 0x0A && message[lenMessage-4] == 0x0D)
+                /* Read the payload until it reach the maximum contentLength */
+                if(flagReadBody == true)
                 {
-                    output->header = strdup(message);
-                    output->httpVersion = getHttpVersion(message);
-                    getHeaderKeyValue(message, "Host", output->host, sizeof(output->host));
-                    getRequestUriPath(message, output->type, output->path, sizeof(output->path));
-                    break;
+                    contentLength--;
+                    if(contentLength <= 0)
+                    {
+                        output->content = strdup(message + indexBody);
+                        break;
+                    }
                 }
             }
         }
@@ -417,10 +464,6 @@ serverErrorCode_e serverRead(server_t *input, request_t *output)
             FREE(output->content);
             continue;
         }
-
-        // printf("\n--------- From client ----------\n\n");
-        // for(int i = 0 ; i < strlen(message) ; i++ ) printf("%c", message[i]);
-        // printf("\n--------------------------------\n\n\n");
 
         output->message = strdup(message);
         FREE(message);
@@ -475,16 +518,13 @@ serverErrorCode_e serverSend(server_t *input, response_t *responseInput)
         responseInput->body);
     serverSession++;
 
-    int sendStatus = 0;
+    ssize_t sendStatus = 0;
     sendStatus = send(input->clientfd, message, strlen(message), 0);
     close(input->clientfd);
 
     if(sendStatus > 0)
     {
         ret = errSuccess;
-        // printf("\n----------- To client ----------\n\n");
-        // for(int i = 0 ; i < strlen(message) ; i++ ) printf("%c", message[i]);
-        // printf("\n--------------------------------\n\n");
     }
     else
     {
@@ -597,3 +637,40 @@ serverErrorCode_e serverAddContent(response_t *input, char *content, ...)
     FREE(bodyTemp);
     return errSuccess;
 }
+
+#ifdef TEST
+
+/**
+ * @brief Compile with :
+ * 
+ *    $ gcc src/libserver.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST
+ *    $ ./test
+ * 
+ */
+int main()
+{
+    char header[] =
+    {
+        0x50,0x4F,0x53,0x54,0x20,0x2F,0x20,0x48,0x54,0x54,0x50,0x2F,0x31,0x2E,0x31,0x0D,
+        0x0A,0x48,0x6F,0x73,0x74,0x3A,0x20,0x6C,0x6F,0x63,0x61,0x6C,0x68,0x6F,0x73,0x74,
+        0x3A,0x39,0x30,0x30,0x30,0x0D,0x0A,0x55,0x73,0x65,0x72,0x2D,0x41,0x67,0x65,0x6E,
+        0x74,0x3A,0x20,0x63,0x75,0x72,0x6C,0x2F,0x37,0x2E,0x36,0x38,0x2E,0x30,0x0D,0x0A,
+        0x41,0x63,0x63,0x65,0x70,0x74,0x3A,0x20,0x2A,0x2F,0x2A,0x0D,0x0A,0x43,0x6F,0x6E,
+        0x74,0x65,0x6E,0x74,0x2D,0x54,0x79,0x70,0x65,0x3A,0x20,0x61,0x70,0x70,0x6C,0x69,
+        0x63,0x61,0x74,0x69,0x6F,0x6E,0x2F,0x6A,0x73,0x6F,0x6E,0x0D,0x0A,0x43,0x6F,0x6E,
+        0x74,0x65,0x6E,0x74,0x2D,0x4C,0x65,0x6E,0x67,0x74,0x68,0x3A,0x20,0x31,0x39,0x0D,
+        0x0A,0x0D,0x0A
+    };
+
+    char path[100];
+    memset(path, 0, sizeof(path));
+    getRequestUriPath(header,path,sizeof(path));
+    int http = getHttpVersion(header);
+    printf("Http version: %d\n",http);
+    printf("Path: %s\n",path);
+    printf("Type request: %s\n",typeStringTranslator[getRequestType(header)]);
+    size_t ret = getContentLength(header, strlen(header));
+    printf("Result: %lu\n",ret);
+    return 0;
+}
+#endif
