@@ -232,7 +232,7 @@ static csvrErrCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
     while(index < headerLen)
     {
         /* Get the first space */
-        if((header[index - 1] == ' ') && firstSpaceIndex == 0)
+        if((header[index - 1] == ' ') && firstSpaceIndex == 0 && index > 0)
         {
             firstSpaceIndex = index;
         }
@@ -304,7 +304,6 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
         return csvrInvalidInput;
     }
 
-    input->serverName = strdup(DEFAULT_SERVER_NAME);
     input->port  = port;
     input->sockfd = -1;
     input->sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -332,6 +331,11 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
         tryTimes++;
         sleep(1);
     }
+
+    size_t lenServerName = strlen(CSVR_NAME) + strlen(CSVR_VERSION) + 1;
+    input->serverName = calloc(lenServerName + 1, sizeof(char));
+    memset(input->serverName, 0, lenServerName + 1);
+    snprintf(input->serverName, lenServerName, "%s-%s", (char*)CSVR_NAME, (char*)CSVR_VERSION);
     return csvrSuccess;
 }
 
@@ -359,7 +363,9 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...
     }
 
     FREE(input->serverName);
-    input->serverName = strdup(temp);
+    input->serverName = calloc(strlen(temp) + 1, sizeof(char));
+    memset(input->serverName, 0, strlen(temp) + 1);
+    snprintf(input->serverName, strlen(temp), "%s", temp);
     FREE(temp);
     if(input->serverName == NULL)
     {
@@ -436,7 +442,9 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
             /* Finish read header */
             if(!memcmp(message + lenMessage - strlen(BODY_SEPARATOR), BODY_SEPARATOR, strlen(BODY_SEPARATOR)))
             {
-                output->header = strdup(message);
+                output->header = calloc(lenMessage + 1, sizeof(char));
+                memset(output->header, 0, lenMessage + 1);
+                snprintf(output->header, lenMessage, "%s", message);
 
                 /* Get request type*/
                 if(output->type == csvrTypeNotKnown)
@@ -490,7 +498,9 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
             continue;
         }
 
-        output->message = strdup(message);
+        output->message = calloc(strlen(message) + 1, sizeof(char));
+        memset(output->message, 0, strlen(message) + 1);
+        snprintf(output->message, strlen(message), "%s", message);
         FREE(message);
         ret = csvrSuccess;
     }while(0);
@@ -630,10 +640,14 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     size_t i = 0;
     for(;i < (input->header.total - 1);i++)
     {
-        newHeader[i] = strdup(input->header.data[i]);
+        newHeader[i] = calloc(strlen(input->header.data[i]) + 1, sizeof(char));
+        memset(newHeader[i], 0, strlen(input->header.data[i]) + 1);
+        snprintf(newHeader[i],  strlen(input->header.data[i]), "%s", input->header.data[i]);
         FREE(input->header.data[i]);
     }
-    newHeader[input->header.total] = strdup(buffer);
+    newHeader[input->header.total] = calloc(strlen(buffer) + 1, sizeof(char));
+    memset(newHeader[input->header.total], 0, strlen(buffer) + 1);
+    snprintf(newHeader[input->header.total], strlen(buffer), "%s", buffer);
     FREE(buffer);
 
     FREE(input->header.data)
@@ -659,7 +673,9 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
     }
 
     FREE(input->body);
-    input->body = strdup(bodyTemp);
+    input->body = calloc(strlen(bodyTemp) + 1, sizeof(char));
+    memset(input->body, 0, strlen(bodyTemp) + 1);
+    snprintf(input->body, strlen(bodyTemp), "%s", bodyTemp);
     FREE(bodyTemp);
     return csvrSuccess;
 }
