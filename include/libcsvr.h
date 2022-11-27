@@ -26,6 +26,7 @@ typedef enum
     errCannotSendData,
     errInvalidInput,
     errInvalidBody,
+    errInvalidHeader,
     errReadFailed,
     errMaxlen
 }serverErrorCode_e;
@@ -104,7 +105,7 @@ typedef struct
     contentType_e contentType;
     httpVersion_e httpVersion;
     connectionType_e connectionType;
-    size_t contentLength;
+    int contentLength;
     char clientAddress[INET_ADDRSTRLEN];
     char host[100];
     char path[100];
@@ -134,7 +135,5 @@ serverErrorCode_e serverReadFinish(request_t *input, response_t *responseInput);
 serverErrorCode_e serverSend(server_t *input, response_t *responseInput);
 serverErrorCode_e serverAddCustomHeader(response_t*input, char *key, char*value);
 serverErrorCode_e serverAddContent(response_t*input, char *content,...);
-
-size_t getContentLength(char*header);
 
 #endif
