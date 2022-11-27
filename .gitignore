@@ -1,0 +1,59 @@
+# list all file that should not included/tracked in repository
+
+# ignore all object files 
+*.o
+
+#ignore folder library and dependecy
+.libs
+.deps
+.settings
+
+# ignore Makefile and Makefile.in, since it will generate every compile samoussa
+Makefile
+Makefile.in
+
+# ignore files generated during autoreconf and ./install.default process
+*.log
+config.status
+compile
+config.guess
+config.sub
+configure
+configure.scan
+depcomp
+INSTALL
+install-sh
+libtool
+ltmain.sh
+missing
+version.number
+aclocal.m4
+autom4te.cache
+depcomp
+html
+latex
+
+#ignore dpklnx folder
+dpklnx
+
+#ifgnore vscode except tasks.json
+.vscode/*
+!.vscode/tasks.json
+
+#ignore unit test framework
+cmocka
+*.gcda
+*.gcno
+*.html
+*.png
+*.css
+*.info
+unit-test/bin
+unit-test/cmocka
+
+.scanner-log
+.scannerwork
+*.Po
+
+m4/*.m4
+build
