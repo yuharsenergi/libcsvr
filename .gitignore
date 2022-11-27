@@ -55,5 +55,5 @@ unit-test/cmocka
 .scannerwork
 *.Po
 
-m4/*.m4
+m4/
 build

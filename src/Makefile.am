@@ -1,9 +1,9 @@
-lib_LTLIBRARIES = libserver.la
+lib_LTLIBRARIES = libcsvr.la
 
-libserver_la_SOURCES = libserver.c
+libcsvr_la_SOURCES = libcsvr.c
 
-libserver_la_LDFLAGS = -lrt -lpthread
+libcsvr_la_LDFLAGS = -lrt -lpthread
 
-libserver_la_CPPFLAGS  = -Wall -g
-libserver_la_CPPFLAGS += -I$(top_srcdir)/include
-libserver_la_CPPFLAGS += -D_GNU_SOURCE
+libcsvr_la_CPPFLAGS  = -Wall -g
+libcsvr_la_CPPFLAGS += -I$(top_srcdir)/include
+libcsvr_la_CPPFLAGS += -D_GNU_SOURCE

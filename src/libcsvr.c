@@ -9,7 +9,7 @@
 #include <string.h>
 #include <pthread.h>
 
-#include "libserver.h"
+#include "libcsvr.h"
 
 #define HEADER_CONTENT_LENGTH_KEY "Content-Length: "
 #define HEADER_CONTENT_TYPE_KEY   "Content-Type: "
