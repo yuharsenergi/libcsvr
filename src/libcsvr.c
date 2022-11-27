@@ -32,48 +32,48 @@ static int serverSession = 0;
 static int totalConnectionAllowed = 5;
 pthread_mutex_t lockRead = PTHREAD_MUTEX_INITIALIZER;
 
-size_t lengthTypeTranslator[maxType] = 
+size_t lengthTypeTranslator[csvrTypeMax] = 
 {
-    [notKnown ] = 0,
-    [get      ] = 3,
-    [put      ] = 3,
-    [post     ] = 4,
-    [head     ] = 4,
-    [delete] = 6,
+    [csvrTypeNotKnown ] = 0,
+    [csvrTypeGet      ] = 3,
+    [csvrTypePut      ] = 3,
+    [csvrTypePost     ] = 4,
+    [csvrTypeHead     ] = 4,
+    [csvrTypeDelete   ] = 6,
 };
 
 char *typeStringTranslator[] = 
 {
-    [notKnown ] = "",
-    [get      ] = "GET ",
-    [put      ] = "PUT ",
-    [post     ] = "POST ",
-    [head     ] = "HEAD ",
-    [delete   ] = "DELETE ",
+    [csvrTypeNotKnown ] = "",
+    [csvrTypeGet      ] = "GET ",
+    [csvrTypePut      ] = "PUT ",
+    [csvrTypePost     ] = "POST ",
+    [csvrTypeHead     ] = "HEAD ",
+    [csvrTypeDelete   ] = "DELETE ",
 };
 
-static requestType_e getRequestType(char*header)
+static csvrRequestType_e getRequestType(char*header)
 {
-    requestType_e type = notKnown;
+    csvrRequestType_e type = csvrTypeNotKnown;
     if(!memcmp("POST", header, 4))
     {
-        type = post;
+        type = csvrTypePost;
     }
     else if(!memcmp("GET", header, 3))
     {
-        type = get;
+        type = csvrTypeGet;
     }
     else if(!memcmp("HEAD", header, 4))
     {
-        type = head;
+        type = csvrTypeHead;
     }
     else if(!memcmp("DELETE", header, 6))
     {
-        type = delete;
+        type = csvrTypeDelete;
     }
     else if(!memcmp("PUT", header, 3))
     {
-        type = put;
+        type = csvrTypePut;
     }
     return type;
 }
@@ -118,14 +118,14 @@ int getContentLength(char*header, size_t headerLen)
     return contentLength;
 }
 
-static contentType_e getContentType(char*header)
+static csvrContentType_e getContentType(char*header)
 {
     if(header == NULL)
     {
-        return errInvalidInput;
+        return noContentType;
     }
 
-    contentType_e contentType = textHtml;
+    csvrContentType_e contentType = textHtml;
     char *line = NULL;
     char buffer[100];
     size_t index = 0;
@@ -170,7 +170,7 @@ static contentType_e getContentType(char*header)
     return contentType;
 }
 
-static size_t getHeaderKeyValue(char*header, char*key, char *dest, size_t maxlen)
+static csvrErrCode_e getHeaderKeyValue(char*header, char*key, char *dest, size_t maxlen)
 {
     if(header == NULL || key == NULL || dest == NULL)
     {
@@ -199,7 +199,7 @@ static size_t getHeaderKeyValue(char*header, char*key, char *dest, size_t maxlen
                 {
                     memset(buffer, 0, maxlen);
                     snprintf(dest, maxlen, "%s", line + strlen(key) + strlen(": "));
-                    ret = 1;
+                    ret = errSuccess;
                     break;
                 }
                 FREE(line);
@@ -213,14 +213,14 @@ static size_t getHeaderKeyValue(char*header, char*key, char *dest, size_t maxlen
     return ret;
 }
 
-static serverErrorCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
+static csvrErrCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
 {
     if(header == NULL || dest == NULL)
     {
         return errInvalidInput;
     }
 
-    serverErrorCode_e ret = errSystemFailure;
+    csvrErrCode_e ret = errSystemFailure;
     char *buffer = NULL;
     size_t index = 0;
     size_t firstSpaceIndex = 0;
@@ -262,9 +262,9 @@ static serverErrorCode_e getRequestUriPath(char*header, char*dest, size_t maxlen
     return ret;
 }
 
-static httpVersion_e getHttpVersion(char*header)
+static csvrHttpVersion_e getHttpVersion(char*header)
 {
-    httpVersion_e version = http1_0;
+    csvrHttpVersion_e version = http1_0;
     size_t len = 0;
     char buffer[10];
 
@@ -293,15 +293,14 @@ static httpVersion_e getHttpVersion(char*header)
     return version;
 }
 
-serverErrorCode_e serverInit(server_t *input, uint16_t port)
+csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
 {
     if(input == NULL)
     {
         return errInvalidInput;
     }
 
-    input->port = port;
-    /**< 1. File descriptor soket : sockfd, dibuat global agar dapat di close oleh fungsi lain *///
+    input->port  = port;
     input->sockfd = -1;
     input->sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (input->sockfd == -1)
@@ -311,7 +310,7 @@ serverErrorCode_e serverInit(server_t *input, uint16_t port)
     }
     else printf("Success create socket at (%d)\n",input->sockfd);
 
-    /**< 2. Assign IP, dan PORT yang akan digunakan untuk server *///
+    /**< 2. Assign IP, dan PORT to be used for server *///
     struct sockaddr_in servaddr;
     memset(&servaddr, 0, sizeof(servaddr)); 
     servaddr.sin_family      = AF_INET;
@@ -324,25 +323,25 @@ serverErrorCode_e serverInit(server_t *input, uint16_t port)
     {
         if(tryTimes > 10)
         {
-            printf("Socket bind failed...\n");
+            // printf("Socket bind failed...\n");
             close(input->sockfd);
             return errBindingFailed;
         }
         tryTimes++;
         sleep(1);
     }
-    printf("Socket successfully binded..\n");
+    // printf("Socket successfully binded..\n");
     return errSuccess;
 }
 
-serverErrorCode_e serverRead(server_t *input, request_t *output)
+csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
 {
     if(input == NULL || output == NULL)
     {
         return errInvalidInput;
     }
 
-    serverErrorCode_e ret = errSystemFailure;
+    csvrErrCode_e ret = errSystemFailure;
     pthread_mutex_lock(&lockRead);
     do
     {
@@ -417,7 +416,7 @@ serverErrorCode_e serverRead(server_t *input, request_t *output)
                 output->header = strdup(message);
 
                 /* Get request type*/
-                if(output->type == notKnown)
+                if(output->type == csvrTypeNotKnown)
                 {
                     output->type = getRequestType(message);
                 }
@@ -425,7 +424,8 @@ serverErrorCode_e serverRead(server_t *input, request_t *output)
                 output->httpVersion = getHttpVersion(message);
                 getHeaderKeyValue(output->header, "Host", output->host, sizeof(output->host));
                 getRequestUriPath(output->header, output->path, sizeof(output->path));
-                if(output->type == post)
+                // ENCO_LOGHEX("HEADER", (unsigned char*) output->header,lenMessage -1);
+                if(output->type == csvrTypePost)
                 {
                     /* Parse data from header */
                     if(flagReadBody == false)
@@ -465,6 +465,10 @@ serverErrorCode_e serverRead(server_t *input, request_t *output)
             continue;
         }
 
+        // printf("\n--------- From client ----------\n\n");
+        // for(int i = 0 ; i < strlen(message) ; i++ ) printf("%c", message[i]);
+        // printf("\n--------------------------------\n\n\n");
+
         output->message = strdup(message);
         FREE(message);
         ret = errSuccess;
@@ -473,7 +477,7 @@ serverErrorCode_e serverRead(server_t *input, request_t *output)
     return ret;
 }
 
-serverErrorCode_e serverSend(server_t *input, response_t *responseInput)
+csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *responseInput)
 {
     if(input == NULL || responseInput == NULL)
     {
@@ -485,7 +489,7 @@ serverErrorCode_e serverSend(server_t *input, response_t *responseInput)
         return errInvalidBody;
     }
 
-    serverErrorCode_e ret = errSuccess;
+    csvrErrCode_e ret = errSuccess;
     char dtime[100];
     memset(dtime,0,sizeof(dtime));
     time_t now = time(0);
@@ -525,6 +529,9 @@ serverErrorCode_e serverSend(server_t *input, response_t *responseInput)
     if(sendStatus > 0)
     {
         ret = errSuccess;
+        // printf("\n----------- To client ----------\n\n");
+        // for(int i = 0 ; i < strlen(message) ; i++ ) printf("%c", message[i]);
+        // printf("\n--------------------------------\n\n");
     }
     else
     {
@@ -535,7 +542,7 @@ serverErrorCode_e serverSend(server_t *input, response_t *responseInput)
     return ret;
 }
 
-serverErrorCode_e serverReadFinish(request_t *input, response_t *responseInput)
+csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *responseInput)
 {
     if(input == NULL)
     {
@@ -545,7 +552,7 @@ serverErrorCode_e serverReadFinish(request_t *input, response_t *responseInput)
     FREE(input->message);
     FREE(input->header);
     FREE(input->content);
-    memset(input, 0, sizeof(request_t));
+    memset(input, 0, sizeof(csvrRequest_t));
 
     /* Free header if any */
     int i = 0;
@@ -556,12 +563,12 @@ serverErrorCode_e serverReadFinish(request_t *input, response_t *responseInput)
     FREE(responseInput->header.data);
     /* Free body */
     FREE(responseInput->body);
-    memset(responseInput, 0, sizeof(response_t));
+    memset(responseInput, 0, sizeof(csvrResponse_t));
 
     return errSuccess;
 }
 
-serverErrorCode_e serverShutdown(server_t *input)
+csvrErrCode_e csvrShutdown(csvrServer_t *input)
 {
     if(input == NULL)
     {
@@ -574,7 +581,7 @@ serverErrorCode_e serverShutdown(server_t *input)
     return errSuccess;
 }
 
-serverErrorCode_e serverAddCustomHeader(response_t*input, char *key, char*value)
+csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
 {
     if(input == NULL || key == NULL || value == NULL)
     {
@@ -615,7 +622,7 @@ serverErrorCode_e serverAddCustomHeader(response_t*input, char *key, char*value)
     return errSuccess;
 }
 
-serverErrorCode_e serverAddContent(response_t *input, char *content, ...)
+csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
 {
     if(input == NULL || content == NULL)
     {

@@ -1,5 +1,5 @@
-#ifndef LIBSERVER_H
-#define LIBSERVER_H
+#ifndef LIBCSVR_H
+#define LIBCSVR_H
 
 #include <stdint.h>
 #include <stdio.h>
@@ -29,82 +29,83 @@ typedef enum
     errInvalidHeader,
     errReadFailed,
     errMaxlen
-}serverErrorCode_e;
+}csvrErrCode_e;
 
 typedef enum{
     http1_0 = 0,
     http1_1 = 1
-}httpVersion_e;
+}csvrHttpVersion_e;
 
 typedef enum{
-    connKeepAlive = 0,
-    connClose     = 1
-}connectionType_e;
+    csvrConnKeepAlive = 0,
+    csvrConnClosed    = 1
+}csvrConnectionType_e;
 
 typedef enum{
-    notKnown  = 0,
-    get       = 1,
-    put       = 2,
-    post      = 3,
-    head      = 4,
-    delete    = 5,
-    maxType
-}requestType_e;
+    csvrTypeNotKnown  = 0,
+    csvrTypeGet       = 1,
+    csvrTypePut       = 2,
+    csvrTypePost      = 3,
+    csvrTypeHead      = 4,
+    csvrTypeDelete    = 5,
+    csvrTypeMax
+}csvrRequestType_e;
 
 typedef enum{
-    applicationJson = 0,
-    textHtml        = 1,
+    noContentType   = 0,
+    applicationJson = 1,
+    textHtml        = 2,
     maxContentType
-}contentType_e;
+}csvrContentType_e;
 
 typedef enum{
-    /* Information Response */
-    responseContinue            = 100,
-    responseSwitchingProtocol   = 101,
-    responseProcessing          = 102,
-    responseEarlyHints          = 103,
+    /* Information response */
+    csvrResponseContinue            = 100,
+    csvrResponseSwitchingProtocol   = 101,
+    csvrResponseProcessing          = 102,
+    csvrResponseEarlyHints          = 103,
 
     /* Successful response */
-    responseOk                  = 200,
-    responseCreated             = 201,
-    responseAccepted            = 202,
-    responseNoAuthoritativeInformation = 203,
-    responseNoContent           = 204,
-    responseResetContent        = 205,
-    responsePartialContent      = 206,
-    responseMultiStatus         = 207,
-    responseIMUsed              = 226,
+    csvrResponseOk                  = 200,
+    csvrResponseCreated             = 201,
+    csvrResponseAccepted            = 202,
+    csvrResponseNoAuthoritativeInformation = 203,
+    csvrResponseNoContent           = 204,
+    csvrResponseResetContent        = 205,
+    csvrResponsePartialContent      = 206,
+    csvrResponseMultiStatus         = 207,
+    csvrResponseIMUsed              = 226,
 
     /* Redirection response */
     
     /* Client Error response */
 
     /* Server Error response */
-    responseInternalServerError = 500,
-    responseNotImplemented      = 501,
-    responseBadGateway          = 502,
-    responseServiceUnavailable  = 503,
-    responseGatewayTimeout      = 504,
-    responseHttpVersionNotSupported = 505,
-    responseVariantAlsoNegotiates   = 506,
-    responseInsufficientStorage     = 507,
-    responseLoopDetected            = 508,
-    responseNotExtended             = 510,
-    responseNetworkAuthenticationRequired = 511,
+    csvrResponseInternalServerError = 500,
+    csvrResponseNotImplemented      = 501,
+    csvrResponseBadGateway          = 502,
+    csvrResponseServiceUnavailable  = 503,
+    csvrResponseGatewayTimeout      = 504,
+    csvrResponseHttpVersionNotSupported = 505,
+    csvrResponseVariantAlsoNegotiates   = 506,
+    csvrResponseInsufficientStorage     = 507,
+    csvrResponseLoopDetected            = 508,
+    csvrResponseNotExtended             = 510,
+    csvrResponseNetworkAuthenticationRequired = 511,
 
-}httpResponseCode_e;
+}csvrHttpResponseCode_e;
 
 typedef struct{
     size_t total;
     char **data;
-}header_t;
+}csvrHeader_t;
 
 typedef struct
 {
-    requestType_e type;
-    contentType_e contentType;
-    httpVersion_e httpVersion;
-    connectionType_e connectionType;
+    csvrRequestType_e type;
+    csvrContentType_e contentType;
+    csvrHttpVersion_e httpVersion;
+    csvrConnectionType_e connectionType;
     int contentLength;
     char clientAddress[INET_ADDRSTRLEN];
     char host[100];
@@ -112,28 +113,28 @@ typedef struct
     char *message;  /* Full data header + body (if any) */
     char *header;   /* The header data only */
     char *content;  /* The content data only */
-}request_t;
+}csvrRequest_t;
 
 
 typedef struct{
-    header_t header;
+    csvrHeader_t header;
     char *body;
-}response_t;
+}csvrResponse_t;
 
 typedef struct
 {
     int sockfd;
     int clientfd;
     uint16_t port;
-}server_t;
+}csvrServer_t;
 
-serverErrorCode_e serverInit(server_t *input, uint16_t port);
-serverErrorCode_e serverShutdown(server_t *input);
+csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port);
+csvrErrCode_e csvrShutdown(csvrServer_t *input);
 
-serverErrorCode_e serverRead(server_t *input, request_t *output);
-serverErrorCode_e serverReadFinish(request_t *input, response_t *responseInput);
-serverErrorCode_e serverSend(server_t *input, response_t *responseInput);
-serverErrorCode_e serverAddCustomHeader(response_t*input, char *key, char*value);
-serverErrorCode_e serverAddContent(response_t*input, char *content,...);
+csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output);
+csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *csvrResponseInput);
+csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *csvrResponseInput);
+csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value);
+csvrErrCode_e csvrAddContent(csvrResponse_t*input, char *content,...);
 
 #endif
