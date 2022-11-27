@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define CSVR_NAME    "libcsvr"
+#define CSVR_VERSION "1.0"
+
 /**< Library untuk socket programming *///
 #include <netdb.h>
 #include <netinet/in.h>
@@ -17,18 +20,19 @@
 
 typedef enum
 {
-    errSuccess = 0,
-    errSystemFailure,
-    errCannotCreateSocket,
-    errBindingFailed,
-    errCannotListenSocket,
-    errCannotAcceptSocket,
-    errCannotSendData,
-    errInvalidInput,
-    errInvalidBody,
-    errInvalidHeader,
-    errReadFailed,
-    errMaxlen
+    csvrSuccess = 0,
+    csvrNotAnError,
+    csvrSystemFailure,
+    csvrCannotBindingSocket,
+    csvrCannotCreateSocket,
+    csvrCannotListenSocket,
+    csvrCannotAcceptSocket,
+    csvrFailedSendData,
+    csvrFailedReadSocket,
+    csvrInvalidInput,
+    csvrInvalidBody,
+    csvrInvalidHeader,
+    csvrErrMax
 }csvrErrCode_e;
 
 typedef enum{
@@ -125,10 +129,12 @@ typedef struct
 {
     int sockfd;
     int clientfd;
+    char *serverName;
     uint16_t port;
 }csvrServer_t;
 
 csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port);
+csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName,...);
 csvrErrCode_e csvrShutdown(csvrServer_t *input);
 
 csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output);

@@ -11,24 +11,28 @@
 
 #include "libcsvr.h"
 
+#ifndef PACKAGE_NAME
+#define PACKAGE_NAME CSVR_NAME
+#endif
+
+#ifndef PACKAGE_VERSION
+#define PACKAGE_VERSION CSVR_VERSION
+#endif
+
 #define HEADER_CONTENT_LENGTH_KEY "Content-Length: "
 #define HEADER_CONTENT_TYPE_KEY   "Content-Type: "
 #define HEADER_SEPARATOR          "\x0D\x0A"
 #define BODY_SEPARATOR            "\x0D\x0A\x0D\x0A"
 #define DEFAULT_MESSAGE_ALLOCATION 3
+#define DEFAULT_SERVER_NAME       PACKAGE_NAME"-"PACKAGE_VERSION
 
 #define MINIMUM_REQUEST_TYPE_LENGTH strlen("PUT")
 #define MAXIMUM_REQUEST_TYPE_LENGTH strlen("DELETE")
 
 #ifndef FREE
-#define FREE(ptr)	if(ptr != NULL)\
-{\
-  free(ptr);\
-  ptr = NULL;\
-}
+#define FREE(ptr) if(ptr != NULL) {free(ptr);ptr = NULL;}
 #endif
 
-static int serverSession = 0;
 static int totalConnectionAllowed = 5;
 pthread_mutex_t lockRead = PTHREAD_MUTEX_INITIALIZER;
 
@@ -78,11 +82,11 @@ static csvrRequestType_e getRequestType(char*header)
     return type;
 }
 
-int getContentLength(char*header, size_t headerLen)
+static int getContentLength(char*header, size_t headerLen)
 {
     if(header == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
     int contentLength = 0;
@@ -174,7 +178,7 @@ static csvrErrCode_e getHeaderKeyValue(char*header, char*key, char *dest, size_t
 {
     if(header == NULL || key == NULL || dest == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
     size_t ret = 0;
@@ -199,7 +203,7 @@ static csvrErrCode_e getHeaderKeyValue(char*header, char*key, char *dest, size_t
                 {
                     memset(buffer, 0, maxlen);
                     snprintf(dest, maxlen, "%s", line + strlen(key) + strlen(": "));
-                    ret = errSuccess;
+                    ret = csvrSuccess;
                     break;
                 }
                 FREE(line);
@@ -217,10 +221,10 @@ static csvrErrCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
 {
     if(header == NULL || dest == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
-    csvrErrCode_e ret = errSystemFailure;
+    csvrErrCode_e ret = csvrSystemFailure;
     char *buffer = NULL;
     size_t index = 0;
     size_t firstSpaceIndex = 0;
@@ -249,7 +253,7 @@ static csvrErrCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
             memset(dest,0,maxlen);
             snprintf(dest, maxlen, "%s", buffer);
             free(buffer);
-            ret = errSuccess;
+            ret = csvrSuccess;
             break;
         }
         index++;
@@ -257,7 +261,7 @@ static csvrErrCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
 
     if(index == headerLen)
     {
-        ret = errInvalidHeader;
+        ret = csvrInvalidHeader;
     }
     return ret;
 }
@@ -297,7 +301,7 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
 {
     if(input == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
     input->port  = port;
@@ -305,10 +309,8 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
     input->sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (input->sockfd == -1)
     {
-        printf("Socket creation failed...\n");
-        return errCannotCreateSocket;
+        return csvrCannotCreateSocket;
     }
-    else printf("Success create socket at (%d)\n",input->sockfd);
 
     /**< 2. Assign IP, dan PORT to be used for server *///
     struct sockaddr_in servaddr;
@@ -323,51 +325,76 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
     {
         if(tryTimes > 10)
         {
-            // printf("Socket bind failed...\n");
             close(input->sockfd);
-            return errBindingFailed;
+            return csvrCannotBindingSocket;
         }
         tryTimes++;
         sleep(1);
     }
-    // printf("Socket successfully binded..\n");
-    return errSuccess;
+    return csvrSuccess;
+}
+
+csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...)
+{
+    if(input == NULL || serverName == NULL)
+    {
+        return csvrInvalidInput;
+    }
+
+    char *temp = NULL;
+    va_list aptr;
+    va_start(aptr, serverName);
+    int ret = vasprintf(&temp, serverName, aptr);
+    va_end(aptr);
+    if(ret == -1)
+    {
+        return -1;
+    }
+
+    if(strlen(temp) == 0)
+    {
+        FREE(temp);
+        return csvrNotAnError;
+    }
+
+    input->serverName = strdup(temp);
+    FREE(temp);
+    if(input->serverName == NULL)
+    {
+        return csvrSystemFailure;
+    }
+
+    return csvrSuccess;
 }
 
 csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
 {
     if(input == NULL || output == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
-    csvrErrCode_e ret = errSystemFailure;
+    csvrErrCode_e ret = csvrSystemFailure;
     pthread_mutex_lock(&lockRead);
     do
     {
-        /**< 
-         * 1. Server Siap menerima siapapun yang request komunikasi dari client. 
-         * Dalam hal ini, server hanya boleh menerima sebanyak totalConnectionAllowed 
-         * yang akan dimasukkan dalam antrian di socket sockfd.
-         *///
+        /* 1. Listen to socket */
         if (listen(input->sockfd, totalConnectionAllowed) != 0)
         {
-            ret = errCannotListenSocket;
+            ret = csvrCannotListenSocket;
             break;
         }
 
         struct sockaddr_in client;  
         memset(&client,0,sizeof(struct sockaddr_in));
 
-        /**< 
-         * 2. Terima konfigurasi, client addres dsb di variabel client
-         *///
+        /* 2. Get the socket configuration to get the client address */
         socklen_t peerAddrSize = sizeof(client);
         input->clientfd = -1;
         input->clientfd = accept(input->sockfd, (struct sockaddr*)&client, &peerAddrSize);
         if (input->clientfd < 0)
         {
-            ret = errCannotAcceptSocket;
+            ret = csvrCannotAcceptSocket;
             break;
         }
 
@@ -375,12 +402,6 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
         memset(output->clientAddress,0,sizeof(output->clientAddress));
         inet_ntop(AF_INET, &ipAddr, output->clientAddress, INET_ADDRSTRLEN );
 
-        /**< 
-         * Baca data-data atau apapun yang dikirim dari client
-         * Proses pembacaan satu persatu, sampai ketemu (0x0D,0x0A) atau
-         * Sampai return read == 0 (yang artinya, end-of-file ,EOF) atau 
-         * proses pembacaan sudah selesai di batch tersebut.
-         *///
         size_t lenMessage    = 0;
         ssize_t retval       = 0;
         char character       = 0;
@@ -398,11 +419,11 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
 
         while(1)
         {
+            /*3.  Read the client socket until EOF, or 0 */
             retval = read(input->clientfd, &character, 1);
             if(retval == 0) break;
             else if(retval < 0)
             {
-                printf("%s\n",strerror(errno));
                 break;
             }
 
@@ -424,7 +445,7 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
                 output->httpVersion = getHttpVersion(message);
                 getHeaderKeyValue(output->header, "Host", output->host, sizeof(output->host));
                 getRequestUriPath(output->header, output->path, sizeof(output->path));
-                // ENCO_LOGHEX("HEADER", (unsigned char*) output->header,lenMessage -1);
+
                 if(output->type == csvrTypePost)
                 {
                     /* Parse data from header */
@@ -457,7 +478,7 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
 
         if(retval <= 0)
         {
-            printf("Read failed...\n");
+            printf("Read failed : %s\n",strerror(errno));
             close(input->clientfd);
             FREE(message);
             FREE(output->header);
@@ -465,13 +486,9 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
             continue;
         }
 
-        // printf("\n--------- From client ----------\n\n");
-        // for(int i = 0 ; i < strlen(message) ; i++ ) printf("%c", message[i]);
-        // printf("\n--------------------------------\n\n\n");
-
         output->message = strdup(message);
         FREE(message);
-        ret = errSuccess;
+        ret = csvrSuccess;
     }while(0);
     pthread_mutex_unlock(&lockRead);
     return ret;
@@ -481,15 +498,15 @@ csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *responseInpu
 {
     if(input == NULL || responseInput == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
     if(responseInput->body == NULL)
     {
-        return errInvalidBody;
+        return csvrInvalidBody;
     }
 
-    csvrErrCode_e ret = errSuccess;
+    csvrErrCode_e ret = csvrSuccess;
     char dtime[100];
     memset(dtime,0,sizeof(dtime));
     time_t now = time(0);
@@ -497,7 +514,7 @@ csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *responseInpu
     strftime(dtime, sizeof(dtime), "%a, %d %b %Y %H:%M:%S %Z", tm);
     
     const char *template = "HTTP/1.1 200 OK\r\n"
-                            "Server: sever-1.0\r\n"
+                            "Server: %s\r\n"
                             "Accept-Ranges: none\r\n"
                             "Vary: Accept-Encoding\r\n"
                             "Last-Modified: %s\r\n"
@@ -510,17 +527,27 @@ csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *responseInpu
 
     char *message = NULL;
     size_t lenBody = strlen(responseInput->body);
-    size_t lenMessage = strlen(template) + strlen(dtime) + lenBody + 10;
+    char *serverName = NULL;
+    if(input->serverName != NULL)
+    {
+        serverName = strdup(input->serverName);
+    }
+    else
+    {
+        serverName = strdup(DEFAULT_SERVER_NAME);
+    }
+
+    size_t lenMessage = strlen(template) + strlen(dtime) + lenBody + strlen(serverName) + 10;
 
     message = malloc((lenMessage)*sizeof(char));
     memset(message,0,lenMessage*sizeof(char));
     
     snprintf(message, lenMessage,
+        serverName,
         template, 
         dtime, 
         lenBody,
         responseInput->body);
-    serverSession++;
 
     ssize_t sendStatus = 0;
     sendStatus = send(input->clientfd, message, strlen(message), 0);
@@ -528,16 +555,14 @@ csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *responseInpu
 
     if(sendStatus > 0)
     {
-        ret = errSuccess;
-        // printf("\n----------- To client ----------\n\n");
-        // for(int i = 0 ; i < strlen(message) ; i++ ) printf("%c", message[i]);
-        // printf("\n--------------------------------\n\n");
+        ret = csvrSuccess;
     }
     else
     {
-        ret = errCannotSendData;
+        ret = csvrFailedSendData;
     }
 
+    FREE(serverName);
     FREE(message);
     return ret;
 }
@@ -546,7 +571,7 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *responseInput
 {
     if(input == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
     FREE(input->message);
@@ -561,31 +586,32 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *responseInput
         FREE(responseInput->header.data[i]);
     }
     FREE(responseInput->header.data);
+
     /* Free body */
     FREE(responseInput->body);
     memset(responseInput, 0, sizeof(csvrResponse_t));
 
-    return errSuccess;
+    return csvrSuccess;
 }
 
 csvrErrCode_e csvrShutdown(csvrServer_t *input)
 {
     if(input == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
+    FREE(input->serverName);
     if(input->sockfd) close(input->sockfd);
     if(input->clientfd) close(input->clientfd);
-
-    return errSuccess;
+    return csvrSuccess;
 }
 
 csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
 {
     if(input == NULL || key == NULL || value == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
     char *buffer = NULL;
@@ -593,7 +619,7 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     buffer = malloc(lenBuffer*sizeof(char));
     if(buffer == NULL)
     {
-        return errSystemFailure;
+        return csvrSystemFailure;
     }
 
     memset(buffer,0,lenBuffer);
@@ -605,7 +631,7 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     if(newHeader == NULL)
     {
         FREE(buffer);
-        return errSystemFailure;
+        return csvrSystemFailure;
     }
 
     size_t i = 0;
@@ -619,14 +645,14 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
 
     FREE(input->header.data)
     input->header.data = newHeader;
-    return errSuccess;
+    return csvrSuccess;
 }
 
 csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
 {
     if(input == NULL || content == NULL)
     {
-        return errInvalidInput;
+        return csvrInvalidInput;
     }
 
     char *bodyTemp = NULL;
@@ -642,7 +668,7 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
     FREE(input->body);
     input->body = strdup(bodyTemp);
     FREE(bodyTemp);
-    return errSuccess;
+    return csvrSuccess;
 }
 
 #ifdef TEST
@@ -650,7 +676,7 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
 /**
  * @brief Compile with :
  * 
- *    $ gcc src/libserver.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST
+ *    $ gcc src/libcsvr.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST
  *    $ ./test
  * 
  */
@@ -672,6 +698,7 @@ int main()
     char path[100];
     memset(path, 0, sizeof(path));
     getRequestUriPath(header,path,sizeof(path));
+
     int http = getHttpVersion(header);
     printf("Http version: %d\n",http);
     printf("Path: %s\n",path);
