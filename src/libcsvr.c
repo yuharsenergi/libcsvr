@@ -351,7 +351,7 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
     size_t lenServerName = strlen(CSVR_NAME) + strlen(CSVR_VERSION) + 1;
     input->serverName = calloc(lenServerName + 1, sizeof(char));
     memset(input->serverName, 0, lenServerName + 1);
-    snprintf(input->serverName, lenServerName, "%s-%s", (char*)CSVR_NAME, (char*)CSVR_VERSION);
+    snprintf(input->serverName, lenServerName + 1, "%s-%s", (char*)CSVR_NAME, (char*)CSVR_VERSION);
 
     input->path = NULL;
     return csvrSuccess;

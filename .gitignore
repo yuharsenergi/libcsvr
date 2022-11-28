@@ -4,6 +4,7 @@
 *.o
 
 #ignore folder library and dependecy
+lib
 .libs
 .deps
 .settings
