@@ -545,101 +545,6 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
         {
             continue;
         }
-        #if 0
-        size_t lenMessage    = 0;
-        ssize_t retval       = 0;
-        char character       = 0;
-        char *message        = NULL;
-        bool flagReadBody    = false;
-        int contentLength = 0;
-        size_t indexBody     = 0;
-
-        /* Initialize */
-        output->header  = NULL;
-        output->content = NULL;
-        output->message = NULL;
-        message = malloc(DEFAULT_MESSAGE_ALLOCATION*sizeof(char));
-        memset(message, 0, DEFAULT_MESSAGE_ALLOCATION);
-
-        while(1)
-        {
-            /*3.  Read the client socket until EOF, or 0 */
-            retval = read(output->clientfd, &character, 1);
-            if(retval == 0) break;
-            else if(retval < 0)
-            {
-                break;
-            }
-
-            message[lenMessage] = character;
-            lenMessage += (size_t)retval;
-            message     = realloc(message, (size_t)(DEFAULT_MESSAGE_ALLOCATION+lenMessage));
-
-            /* Finish read header */
-            if(!memcmp(message + lenMessage - strlen(BODY_SEPARATOR), BODY_SEPARATOR, strlen(BODY_SEPARATOR)))
-            {
-                output->header = calloc(lenMessage + 1, sizeof(char));
-                memset(output->header, 0, lenMessage + 1);
-                snprintf(output->header, lenMessage, "%s", message);
-
-                /* Get request type*/
-                if(output->type == csvrTypeNotKnown)
-                {
-                    output->type = getRequestType(message);
-                }
-                
-                output->httpVersion = getHttpVersion(message);
-                getHeaderKeyValue(output->header, "Host", output->host, sizeof(output->host));
-                getRequestUriPath(output->header, output->path, sizeof(output->path));
-
-                if(output->type == csvrTypePost)
-                {
-                    /* Parse data from header */
-                    if(flagReadBody == false)
-                    {
-                        flagReadBody            = true;
-                        indexBody               = lenMessage;
-                        output->contentType     = getContentType(output->header);
-                        contentLength           = getContentLength(output->header, lenMessage);
-                        output->contentLength   = getContentLength(output->header, lenMessage);
-                    }
-                    continue;
-                }
-                break;
-            }
-            else
-            {
-                /* Read the payload until it reach the maximum contentLength */
-                if(flagReadBody == true)
-                {
-                    contentLength--;
-                    if(contentLength <= 0)
-                    {
-                        output->content = calloc(contentLength + 1, sizeof(char));
-                        memset(output->content, 0, contentLength + 1);
-                        memcpy(output->content, message + indexBody, contentLength);
-                        break;
-                    }
-                }
-            }
-        }
-
-        if(retval <= 0)
-        {
-            printf("Read failed : %s\n",strerror(errno));
-            close(output->clientfd);
-            FREE(message);
-            FREE(output->header);
-            FREE(output->content);
-            continue;
-        }
-
-        output->message = calloc(strlen(message) + 1, sizeof(char));
-        memset(output->message, 0, strlen(message) + 1);
-        snprintf(output->message, strlen(message), "%s", message);
-        FREE(message);
-        ret = csvrSuccess;
-        #endif
     }while(0);
     pthread_mutex_unlock(&lockRead);
     return ret;
@@ -691,6 +596,7 @@ static void *csvrAsyncronousThreads(void * arg)
 
     threadsData->server->asyncFlag = true;
 
+    printf("[INFO] Server is listening at port %u\n", threadsData->server->port);
     while(1)
     {
         csvrRequest_t request;
@@ -699,7 +605,8 @@ static void *csvrAsyncronousThreads(void * arg)
         /* 1. Listen to socket */
         if (listen(threadsData->server->sockfd, totalConnectionAllowed) != 0)
         {
-            continue;
+            printf("[INFO] Failed listen socket\n");
+            break;
         }
 
         struct sockaddr_in client;  
@@ -711,6 +618,7 @@ static void *csvrAsyncronousThreads(void * arg)
         request.clientfd = accept(threadsData->server->sockfd, (struct sockaddr*)&client, &peerAddrSize);
         if (request.clientfd < 0)
         {
+            printf("[INFO] Cannot accept client\n");
             continue;
         }
 
@@ -740,6 +648,7 @@ static void *csvrAsyncronousThreads(void * arg)
         }
         usleep(100000);
     }
+    threadsData->server->asyncFlag = false;
     pthread_exit(NULL);
 }
 /**
@@ -872,13 +781,16 @@ csvrErrCode_e csvrShutdown(csvrServer_t *input)
         return csvrInvalidInput;
     }
 
+    printf("[INFO] Shutdown server\n");
     if(input->asyncFlag)
     {
+        printf("[INFO] Canceling threads\n");
         pthread_cancel(serverThreads);
         pthread_join(serverThreads, NULL);
     }
 
     FREE(input->serverName);
+    printf("[INFO] Closing running socket\n");
     if(input->sockfd) close(input->sockfd);
 
     if(input->path)
@@ -890,6 +802,7 @@ csvrErrCode_e csvrShutdown(csvrServer_t *input)
             if(current != NULL)
             {
                 next = current->next;
+                printf("[INFO] Cleaning URI %s\n",current->name);
                 FREE(current->name);
                 FREE(current);
             }
@@ -1074,7 +987,7 @@ void *handlerRequest(csvrServer_t *server,csvrRequest_t *request, void *userData
 /**
  * @brief Compile with :
  * 
- *    $ gcc src/libcsvr.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST
+ *    $ gcc src/libcsvr.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST -lpthread
  *    $ ./test
  * 
  */
