@@ -23,6 +23,7 @@ typedef enum
     csvrSuccess = 0,
     csvrNotAnError,
     csvrSystemFailure,
+    csvrUriAlreadyExists,
     csvrCannotBindingSocket,
     csvrCannotCreateSocket,
     csvrCannotListenSocket,
@@ -110,6 +111,7 @@ typedef struct
     csvrContentType_e contentType;
     csvrHttpVersion_e httpVersion;
     csvrConnectionType_e connectionType;
+    int clientfd;
     int contentLength;
     char clientAddress[INET_ADDRSTRLEN];
     char host[100];
@@ -127,20 +129,32 @@ typedef struct{
 
 typedef struct
 {
+    bool asyncFlag;
     int sockfd;
-    int clientfd;
     char *serverName;
     uint16_t port;
+    struct csvrPathUrl_t * path;
 }csvrServer_t;
 
+struct csvrPathUrl_t
+{
+    csvrRequestType_e type;
+    char *name;
+    void *(*callbackFunction) (csvrServer_t*,csvrRequest_t *, void *);
+    struct csvrPathUrl_t *next;
+};
+
 csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port);
+csvrErrCode_e csvrServerStart(csvrServer_t *input, void *userData);
+
 csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName,...);
 csvrErrCode_e csvrShutdown(csvrServer_t *input);
 
 csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output);
 csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *csvrResponseInput);
-csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrResponse_t *csvrResponseInput);
+csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrRequest_t * request, csvrResponse_t *response);
 csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value);
 csvrErrCode_e csvrAddContent(csvrResponse_t*input, char *content,...);
+csvrErrCode_e csvrAddPath(csvrServer_t *input, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrServer_t*,csvrRequest_t *, void *));
 
 #endif
