@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define CSVR_NAME    "libcsvr"
 #define CSVR_VERSION "1.0"
@@ -116,6 +117,7 @@ typedef struct
     char clientAddress[INET_ADDRSTRLEN];
     char host[100];
     char path[100];
+    char *serverName;   /* The copied server name */
     char *message;  /* Full data header + body (if any) */
     char *header;   /* The header data only */
     char *content;  /* The content data only */
@@ -140,21 +142,22 @@ struct csvrPathUrl_t
 {
     csvrRequestType_e type;
     char *name;
-    void *(*callbackFunction) (csvrServer_t*,csvrRequest_t *, void *);
+    void *(*callbackFunction) (csvrRequest_t *, void *);
     struct csvrPathUrl_t *next;
 };
 
 csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port);
-csvrErrCode_e csvrServerStart(csvrServer_t *input, void *userData);
+csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData);
 
 csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName,...);
 csvrErrCode_e csvrShutdown(csvrServer_t *input);
 
 csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output);
 csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *csvrResponseInput);
-csvrErrCode_e csvrSendResponse(csvrServer_t *input, csvrRequest_t * request, csvrResponse_t *response);
+csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response);
+csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCode_e code, char*desc);
 csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value);
 csvrErrCode_e csvrAddContent(csvrResponse_t*input, char *content,...);
-csvrErrCode_e csvrAddPath(csvrServer_t *input, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrServer_t*,csvrRequest_t *, void *));
+csvrErrCode_e csvrAddPath(csvrServer_t *input, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *));
 
 #endif
