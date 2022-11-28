@@ -648,19 +648,24 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
 struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path)
 {
     struct csvrPathUrl_t * current = NULL;
+    struct csvrPathUrl_t * head = NULL;
     if(input && path)
     {
+        head = input;
         current = input;
         while(current)
         {
-            if(!memcmp(current->name, path, strlen(path)))
+            if(strlen(current->name) == strlen(path))
             {
-                return current;
+                if(!memcmp(current->name, path, strlen(path)))
+                {
+                    break;
+                }
             }
             current = current->next;
         }
     }
-
+    input = head;
     return current;
 }
 
@@ -1053,6 +1058,18 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
 }
 
 #ifdef TEST
+void *handlerRequest(csvrServer_t *server,csvrRequest_t *request, void *userData)
+{
+    csvrResponse_t response;
+    memset(&response,0, sizeof(response));
+    struct csvrPathUrl_t * link = NULL;
+    link = csvrSearchUri(server->path, request->path);
+    printf("%s -> %s\n",request->path, link->name);
+    csvrReadFinish(request, &response);
+
+    return NULL;
+}
+
 
 /**
  * @brief Compile with :
@@ -1101,6 +1118,32 @@ int main()
         printf("[%d] %s\n",i,response.header.data[i]);
     }
     csvrReadFinish(&request,&response);
+
+    csvrServer_t server;
+    memset(&server, 0, sizeof(csvrServer_t));
+
+    csvrAddPath(&server, "/", csvrTypePost, handlerRequest);
+    csvrAddPath(&server, "/time", csvrTypeGet, handlerRequest);
+    csvrAddPath(&server, "/roamer", csvrTypePost, handlerRequest);
+    
+    struct csvrPathUrl_t * link = NULL;
+    
+    memset(&request, 0, sizeof(csvrRequest_t));
+    strcpy(request.path,"/time");
+    link = csvrSearchUri(server.path, "/time");
+    (*link->callbackFunction)(&server, &request, &response);
+    
+    memset(&request, 0, sizeof(csvrRequest_t));
+    strcpy(request.path,"/roamer");
+    link = csvrSearchUri(server.path, "/roamer");
+    (*link->callbackFunction)(&server, &request, &response);
+
+    memset(&request, 0, sizeof(csvrRequest_t));
+    strcpy(request.path,"/");
+    link = csvrSearchUri(server.path, "/");
+    (*link->callbackFunction)(&server, &request, &response);
+
+    csvrShutdown(&server);
     return 0;
 }
 #endif
