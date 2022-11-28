@@ -11,34 +11,29 @@
 #include "threads.h"
 #include "codec.h"
 
-static pthread_t thrServer;
-bool isRunning = false;
+int initializeServerPath(csvrServer_t *input);
+long session = 0;
+void *handlerGetData(csvrRequest_t *request, void *userData);
+void *handlerTime(csvrRequest_t *request, void *userData);
+void *handlerRequest(csvrRequest_t *request, void *userData);
 
-int initThreads(csvrServer_t *input);
-void shutdownThreads(void);
-void joinThreads(void);
-void *threadServer(void *arg);
-void *handlerGetData(csvrServer_t *server, csvrRequest_t *request, void *userData);
-void *handlerTime(csvrServer_t *server, csvrRequest_t *request, void *userData);
-void *handlerRequest(csvrServer_t *server, csvrRequest_t *request, void *userData);
-
-void *handlerGetData(csvrServer_t *server,csvrRequest_t *request, void *userData)
+void *handlerGetData(csvrRequest_t *request, void *userData)
 {
-    printf("[%s][ <<< ] [%s][%s] %s\n",__func__,request->clientAddress, request->path,request->content ? request->content : "");
+    printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path,request->content ? request->content : "");
     csvrResponse_t response;
     CLEARSTRUCT(response);
-    char * jsonData = "{\"status\":\"Get roamer Data\"}\n";
-    csvrAddContent(&response, jsonData);
-    csvrSendResponse(server, request, &response);
-    printf("[ >>> ] %s\n",jsonData);
+
+    csvrAddContent(&response, "{\"id\":%d,\"status\":\"Get roamer Data\"}\n",session);
+    csvrSendResponse(request, &response);
+    printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);
 
     return NULL;
 }
 
-void *handlerTime(csvrServer_t *server,csvrRequest_t *request, void *userData)
+void *handlerTime(csvrRequest_t *request, void *userData)
 {
-    printf("[%s][ <<< ] [%s][%s]\n",__func__, request->clientAddress, request->path);
+    printf("[ <<< ] [%s][%s]\n", request->clientAddress, request->path);
     csvrResponse_t response;
     CLEARSTRUCT(response);
 
@@ -55,98 +50,38 @@ void *handlerTime(csvrServer_t *server,csvrRequest_t *request, void *userData)
     strftime(time_str, sizeof(time_str), "%y-%m-%d %H:%M:%S", d_tm);
     snprintf(time_str + strlen(time_str),sizeof(time_str), ".%lu",msec);
 
-    char * jsonData = NULL;
-    if(asprintf(&jsonData, "{\"time\":\"%s\"}\n", time_str) != -1)
-    {
-        csvrAddContent(&response, jsonData);
-    }
-    {
-        csvrAddContent(&response, "{\"time\":\"\"}\n");
-    }
-    csvrSendResponse(server, request, &response);
-    printf("[ >>> ] %s\n",jsonData);
+    csvrAddContent(&response,
+            "{"
+                "\"id\":%d,"
+                "\"time\":\"%s\""
+            "}",
+            session++,
+            time_str);
+    csvrSendResponse(request, &response);
+    printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);
-    FREE(jsonData);
     return NULL;
 }
 
-void *handlerRequest(csvrServer_t *server,csvrRequest_t *request, void *userData)
+void *handlerRequest(csvrRequest_t *request, void *userData)
 {
-    printf("[%s][ <<< ] [%s][%s] %s\n",__func__,request->clientAddress, request->path,request->content ? request->content : "");
+    printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path,request->content ? request->content : "");
     csvrResponse_t response;
     CLEARSTRUCT(response);
+    csvrAddContent(&response, "{\"id\":%d,\"request\":%s}", session,request->content ? request->content : "\"\"");
 
-    char *defaultResponse = "{\"request\":\"ok\"}\n";
-    char * jsonData = NULL;
-    int retprint = 0;
-    if(request->content)
-    {
-        retprint = asprintf(&jsonData, "{\"request\":\"%s\"}\n", request->content);
-    }
-
-    if(retprint != -1)
-    {
-        csvrAddContent(&response, jsonData);
-        printf("[ >>> ] %s\n",jsonData);
-    }
-    else
-    {
-        csvrAddContent(&response, defaultResponse);
-        printf("[ >>> ] %s\n",jsonData);
-    }
-    csvrSendResponse(server, request, &response);
+    csvrSendResponse(request, &response);
+    printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);
-    FREE(jsonData);
 
     return NULL;
 }
 
-void *threadServer(void *arg)
+int initializeServerPath(csvrServer_t *input)
 {
-    csvrServer_t *input = (csvrServer_t*)arg;
-
-    isRunning = true;
-    csvrRequest_t request;
-    while(isRunning == true)
-    {
-        CLEARSTRUCT(request);
-        csvrRead(input, &request);
-
-        if(request.content) trim_lf(request.content);
-
-        printf("[ <<< ] [%s][%s] %u %s\n",request.clientAddress, request.path, request.contentLength,request.content ? request.content : "");
-
-        csvrResponse_t response;
-        CLEARSTRUCT(response);
-        char * jsonData = "{\"status\":\"OK\"}\n";
-        csvrAddContent(&response, jsonData);
-        csvrSendResponse(input, &request, &response);
-        printf("[ >>> ] %s\n",jsonData);
-        csvrReadFinish(&request, &response);
-    }
-
-    pthread_exit(NULL);
-}
-
-int initThreads(csvrServer_t *input)
-{
-    int ret = -1;
     csvrAddPath(input, "/", csvrTypePost, handlerRequest);
     csvrAddPath(input, "/time", csvrTypeGet, handlerTime);
     csvrAddPath(input, "/roamer", csvrTypePost, handlerGetData);
-    if(csvrServerStart(input, NULL) == csvrSuccess)
-    {
-        ret = 0;
-    }
-    return ret;
-}
-
-void joinThreads(void)
-{
-    pthread_join(thrServer,NULL);
-}
-
-void shutdownThreads(void)
-{
-    if(isRunning) pthread_cancel(thrServer);
+    printf("Initialize URI Path finished.\n");
+    return 0;
 }
