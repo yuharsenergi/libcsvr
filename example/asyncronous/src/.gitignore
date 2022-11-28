@@ -1,0 +1,8 @@
+Makefile.in
+Makefile
+*.o
+*.lo
+erlog
+.deps
+.libs
+example
