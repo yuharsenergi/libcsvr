@@ -601,9 +601,9 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     /* If path not found */
     else
     {
-        csvrSendResponseError(data->request, csvrResponseBadGateway, "BAD GATEWAY");
-        csvrReadFinish(data->request, NULL);
+        csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
     }
+    csvrReadFinish(data->request, NULL);
     FREE(data->request);
     pthread_exit(NULL);
 }
@@ -637,6 +637,11 @@ static void *csvrAsyncronousThreads(void * arg)
     {
         csvrRequest_t * request = NULL;
         request = calloc(1, sizeof(csvrRequest_t));
+        if(request == NULL)
+        {
+            break;
+        }
+
         memset(request,0,sizeof(csvrRequest_t));
         threadsData->request = request;
         request->serverName = strdup(threadsData->server->serverName);
@@ -669,7 +674,7 @@ static void *csvrAsyncronousThreads(void * arg)
 
         pthread_t threadClient;
         /* if success, do the procedure based on the path */
-        if(csvrClientReader(threadsData->request) == csvrSuccess)
+        if(csvrClientReader(request) == csvrSuccess)
         {
             int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)threadsData);
             /* If success, detach the threads */
@@ -681,12 +686,8 @@ static void *csvrAsyncronousThreads(void * arg)
             else
             {
                 printf("[INFO] Cannot spawn threads\n");
-                csvrResponse_t response;
-                memset(&response,0,sizeof(csvrResponse_t));
-                char * jsonData = "{\"status\":500,\"descriptions\":\"Internal server error\"}\n";
-                csvrAddContent(&response, jsonData);
-                csvrSendResponse(&request, &response);
-                csvrReadFinish(request, &response);
+                csvrSendResponseError(request, csvrResponseInternalServerError, "Internal Server Error");
+                csvrReadFinish(request, NULL);
                 FREE(request);
             }
         }
@@ -816,24 +817,37 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
                             "Vary: Accept-Encoding\r\n"
                             "Last-Modified: %s\r\n"
                             "Connection: closed\r\n"
+                            "%s"
                             "\r\n"
+                            "%s"
                             ;
-
     char *message = NULL;
-    size_t lenMessage = strlen(template) + strlen(dtime) + strlen(request->serverName) + strlen(desc) + 10;
-
-    message = malloc((lenMessage)*sizeof(char));
-    memset(message,0,lenMessage*sizeof(char));
+    char *payload = NULL;
+    char *header  = NULL;
+    int retprint  = -1;
+    if(createHttpErrorResponse(&message, request, code) == csvrSuccess)
+    {
+        header = "Content-Type: text/html; charset=utf-8\r\n";
+    }
     
-    snprintf(message, lenMessage, template, 
-        code,
-        desc,
+    retprint = asprintf(&payload, template, 
+        code, desc,
         request->serverName,
-        dtime
+        dtime,
+        header ? header : "",
+        message ? message : ""
         );
 
     ssize_t sendStatus = 0;
-    sendStatus = send(request->clientfd, message, strlen(message), 0);
+    if(retprint == -1)
+    {
+        /* Send empty reply */
+        send(request->clientfd, "", 0, 0);
+    }
+    else
+    {
+        sendStatus = send(request->clientfd, message, strlen(message), 0);
+    }
 
     if(sendStatus > 0)
     {
@@ -844,6 +858,7 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
         ret = csvrFailedSendData;
     }
 
+    FREE(payload);
     FREE(message);
     return ret;
 }
