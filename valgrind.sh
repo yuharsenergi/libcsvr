@@ -1,3 +1,3 @@
 #!/bin/bash
 
-valgrind --leak-check=full --track-origins=yes --log-file=leak.txt $1
+valgrind --leak-check=full --track-origins=yes --log-file=$1-valgrind-check.txt $1
