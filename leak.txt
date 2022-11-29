@@ -1,0 +1,60 @@
+==23673== Memcheck, a memory error detector
+==23673== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==23673== Using Valgrind-3.15.0 and LibVEX; rerun with -h for copyright info
+==23673== Command: example/asyncronous/src/asyncronous
+==23673== Parent PID: 23672
+==23673== 
+==23673== Thread 2:
+==23673== Invalid read of size 1
+==23673==    at 0x4C305E5: __memcmp_sse4_1 (vg_replace_strmem.c:1112)
+==23673==    by 0x513AA66: csvrClientReader (libcsvr.c:442)
+==23673==    by 0x513BF03: csvrAsyncronousThreads (libcsvr.c:670)
+==23673==    by 0x554EEA4: start_thread (in /usr/lib64/libpthread-2.17.so)
+==23673==    by 0x5861B0C: clone (in /usr/lib64/libc-2.17.so)
+==23673==  Address 0x5b3175d is 3 bytes before a block of size 4 alloc'd
+==23673==    at 0x4C2C291: realloc (vg_replace_malloc.c:836)
+==23673==    by 0x513AA4D: csvrClientReader (libcsvr.c:439)
+==23673==    by 0x513BF03: csvrAsyncronousThreads (libcsvr.c:670)
+==23673==    by 0x554EEA4: start_thread (in /usr/lib64/libpthread-2.17.so)
+==23673==    by 0x5861B0C: clone (in /usr/lib64/libc-2.17.so)
+==23673== 
+==23673== Conditional jump or move depends on uninitialised value(s)
+==23673==    at 0x57B0079: vfprintf (in /usr/lib64/libc-2.17.so)
+==23673==    by 0x57DB178: vsnprintf (in /usr/lib64/libc-2.17.so)
+==23673==    by 0x57B6581: snprintf (in /usr/lib64/libc-2.17.so)
+==23673==    by 0x513AB17: csvrClientReader (libcsvr.c:446)
+==23673==    by 0x513BF03: csvrAsyncronousThreads (libcsvr.c:670)
+==23673==    by 0x554EEA4: start_thread (in /usr/lib64/libpthread-2.17.so)
+==23673==    by 0x5861B0C: clone (in /usr/lib64/libc-2.17.so)
+==23673== 
+==23673== Invalid read of size 1
+==23673==    at 0x513AE0D: getRequestUriPath (libcsvr.c:243)
+==23673==    by 0x513AE0D: csvrClientReader (libcsvr.c:456)
+==23673==    by 0x513BF03: csvrAsyncronousThreads (libcsvr.c:670)
+==23673==    by 0x554EEA4: start_thread (in /usr/lib64/libpthread-2.17.so)
+==23673==    by 0x5861B0C: clone (in /usr/lib64/libc-2.17.so)
+==23673==  Address 0x5b4054f is 1 bytes before a block of size 283 alloc'd
+==23673==    at 0x4C2C089: calloc (vg_replace_malloc.c:762)
+==23673==    by 0x513AAE8: csvrClientReader (libcsvr.c:444)
+==23673==    by 0x513BF03: csvrAsyncronousThreads (libcsvr.c:670)
+==23673==    by 0x554EEA4: start_thread (in /usr/lib64/libpthread-2.17.so)
+==23673==    by 0x5861B0C: clone (in /usr/lib64/libc-2.17.so)
+==23673== 
+==23673== Conditional jump or move depends on uninitialised value(s)
+==23673==    at 0x57B0079: vfprintf (in /usr/lib64/libc-2.17.so)
+==23673==    by 0x57DB178: vsnprintf (in /usr/lib64/libc-2.17.so)
+==23673==    by 0x57B6581: snprintf (in /usr/lib64/libc-2.17.so)
+==23673==    by 0x513AC5E: csvrClientReader (libcsvr.c:502)
+==23673==    by 0x513BF03: csvrAsyncronousThreads (libcsvr.c:670)
+==23673==    by 0x554EEA4: start_thread (in /usr/lib64/libpthread-2.17.so)
+==23673==    by 0x5861B0C: clone (in /usr/lib64/libc-2.17.so)
+==23673== 
+==23673== 
+==23673== HEAP SUMMARY:
+==23673==     in use at exit: 0 bytes in 0 blocks
+==23673==   total heap usage: 1,692 allocs, 1,692 frees, 414,701 bytes allocated
+==23673== 
+==23673== All heap blocks were freed -- no leaks are possible
+==23673== 
+==23673== For lists of detected and suppressed errors, rerun with: -s
+==23673== ERROR SUMMARY: 18 errors from 4 contexts (suppressed: 0 from 0)

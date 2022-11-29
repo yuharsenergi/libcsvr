@@ -602,7 +602,16 @@ static void *csvrProcessUserProcedureThreads(void *arg)
 
 void csvrAsyncronousThreadsCleanUp(void *arg)
 {
-    FREE(arg);
+    csvrThreadsData_t *data = (csvrThreadsData_t *)arg;
+    if(data)
+    {
+        FREE(data->request->message);
+        FREE(data->request->header);
+        FREE(data->request->content);
+        FREE(data->request->serverName);
+        FREE(data->request);
+    }
+    FREE(data);
 }
 
 static void *csvrAsyncronousThreads(void * arg)
@@ -624,6 +633,7 @@ static void *csvrAsyncronousThreads(void * arg)
         csvrRequest_t * request = NULL;
         request = calloc(1, sizeof(csvrRequest_t));
         memset(request,0,sizeof(csvrRequest_t));
+        threadsData->request = request;
         request->serverName = strdup(threadsData->server->serverName);
         #if 0
         // csvrRead((threadsData->server), request);
@@ -656,8 +666,6 @@ static void *csvrAsyncronousThreads(void * arg)
         inet_ntop(AF_INET, &ipAddr, request->clientAddress, INET_ADDRSTRLEN );
 
         pthread_t threadClient;
-        threadsData->request = request;
-
         /* if success, do the procedure based on the path */
         if(csvrClientReader(threadsData->request) == csvrSuccess)
         {
@@ -679,6 +687,14 @@ static void *csvrAsyncronousThreads(void * arg)
                 csvrReadFinish(request, &response);
                 FREE(request);
             }
+        }
+        else
+        {
+            FREE(request->message);
+            FREE(request->header);
+            FREE(request->content);
+            FREE(request->serverName);
+            FREE(request);
         }
 
         #endif
@@ -850,6 +866,7 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *response)
     FREE(input->message);
     FREE(input->header);
     FREE(input->content);
+    FREE(input->serverName);
     memset(input, 0, sizeof(csvrRequest_t));
 
     /* Free header if any */
