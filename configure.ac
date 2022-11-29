@@ -2,7 +2,8 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
 AC_COPYRIGHT(GNU General Public License)
-AC_INIT(libcsvr, 1.0)
+AC_INIT(libcsvr, 1.0, yuharsenergi@gmail.com)
+
 AC_PROG_CC
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -22,6 +23,7 @@ dnl Check if Libtool is present
 dnl Libtool is used for building share libraries 
 AC_PROG_LIBTOOL
 
+AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES(Makefile)
 AC_CONFIG_FILES(src/Makefile)
 AC_OUTPUT
