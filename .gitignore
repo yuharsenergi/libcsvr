@@ -17,32 +17,32 @@ Makefile.in
 *.log
 config.status
 compile
+config.h
+config.h.in
 config.guess
 config.sub
 configure
 configure.scan
 depcomp
-INSTALL
 install-sh
 libtool
 ltmain.sh
 missing
-version.number
 aclocal.m4
 autom4te.cache
 depcomp
 html
 latex
+stamp-h1
 
 #ignore dpklnx folder
 dpklnx
 
-#ifgnore vscode except tasks.json
+#ignore vscode except tasks.json
 .vscode/*
 !.vscode/tasks.json
 
 #ignore unit test framework
-cmocka
 *.gcda
 *.gcno
 *.html
@@ -50,12 +50,9 @@ cmocka
 *.css
 *.info
 unit-test/bin
-unit-test/cmocka
-
-.scanner-log
-.scannerwork
-*.Po
+unit-test/
 
 m4/
 build
 test
+*.tar.gz
