@@ -308,21 +308,21 @@ static csvrHttpVersion_e getHttpVersion(char*header)
 /**
  * @brief 
  * 
- * @param[in] input 
+ * @param[in] server 
  * @param[in] port 
  * @return csvrErrCode_e 
  */
-csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
+csvrErrCode_e csvrInit(csvrServer_t *server, uint16_t port)
 {
-    if(input == NULL)
+    if(server == NULL)
     {
         return csvrInvalidInput;
     }
 
-    input->port  = port;
-    input->sockfd = -1;
-    input->sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (input->sockfd == -1)
+    server->port  = port;
+    server->sockfd = -1;
+    server->sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server->sockfd == -1)
     {
         return csvrCannotCreateSocket;
     }
@@ -332,16 +332,16 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
     memset(&servaddr, 0, sizeof(servaddr)); 
     servaddr.sin_family      = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port        = htons(input->port);
+    servaddr.sin_port        = htons(server->port);
 
     /**< 3. Binding newly created socket to given IP and verification *///
     int tryTimes = 0;
-    while (bind(input->sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0)
+    while (bind(server->sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0)
     {
         if(tryTimes > 10)
         {
-            close(input->sockfd);
-            input->sockfd = -1;
+            close(server->sockfd);
+            server->sockfd = -1;
             return csvrCannotBindingSocket;
         }
         tryTimes++;
@@ -349,11 +349,11 @@ csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port)
     }
 
     size_t lenServerName = strlen(CSVR_NAME) + strlen(CSVR_VERSION) + 1;
-    input->serverName = calloc(lenServerName + 1, sizeof(char));
-    memset(input->serverName, 0, lenServerName + 1);
-    snprintf(input->serverName, lenServerName + 1, "%s-%s", (char*)CSVR_NAME, (char*)CSVR_VERSION);
+    server->serverName = calloc(lenServerName + 1, sizeof(char));
+    memset(server->serverName, 0, lenServerName + 1);
+    snprintf(server->serverName, lenServerName + 1, "%s-%s", (char*)CSVR_NAME, (char*)CSVR_VERSION);
 
-    input->path = NULL;
+    server->path = NULL;
     return csvrSuccess;
 }
 
@@ -856,30 +856,31 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     return ret;
 }
 
-csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *response)
+csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *response)
 {
-    if(input == NULL)
+    if(request)
     {
-        return csvrInvalidInput;
+        FREE(request->message);
+        FREE(request->header);
+        FREE(request->content);
+        FREE(request->serverName);
+        memset(request, 0, sizeof(csvrRequest_t));
     }
 
-    FREE(input->message);
-    FREE(input->header);
-    FREE(input->content);
-    FREE(input->serverName);
-    memset(input, 0, sizeof(csvrRequest_t));
-
-    /* Free header if any */
-    int i = 0;
-    for(;i<response->header.total;i++)
+    if(response)
     {
-        FREE(response->header.data[i]);
-    }
-    FREE(response->header.data);
+        /* Free header if any */
+        int i = 0;
+        for(;i<response->header.total;i++)
+        {
+            FREE(response->header.data[i]);
+        }
+        FREE(response->header.data);
 
-    /* Free body */
-    FREE(response->body);
-    memset(response, 0, sizeof(csvrResponse_t));
+        /* Free body */
+        FREE(response->body);
+        memset(response, 0, sizeof(csvrResponse_t));
+    }
 
     return csvrSuccess;
 }

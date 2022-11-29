@@ -153,7 +153,7 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName,...)
 csvrErrCode_e csvrShutdown(csvrServer_t *input);
 
 csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output);
-csvrErrCode_e csvrReadFinish(csvrRequest_t *input, csvrResponse_t *csvrResponseInput);
+csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *csvrResponseInput);
 csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response);
 csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCode_e code, char*desc);
 csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value);
