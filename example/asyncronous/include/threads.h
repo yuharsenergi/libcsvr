@@ -3,6 +3,6 @@
 
 #include "libcsvr.h"
 
-int initializeServerPath(csvrServer_t *input);
+int initializeServerPath(csvrServer_t *);
 
 #endif

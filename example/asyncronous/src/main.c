@@ -49,30 +49,28 @@ int main(int arg,char**argv)
     sigtermHandler.sa_flags = SA_SIGINFO;
     sigaction(SIGTERM, &sigtermHandler, NULL);
 
-    csvrServer_t server;
-    // server = calloc(1, sizeof(csvrServer_t));
-    memset(&server, 0, sizeof(csvrServer_t));
-
-    if(csvrInit(&server, PORT) != csvrSuccess)
+    csvrServer_t * server = NULL;
+    server = csvrInit(PORT);
+    if(server == NULL)
     {
         printf("Failed initialize server at port:%u\n",PORT);
         return 0;
     }
     printf("Success init server\n");
 
-    if(initializeServerPath(&server) != 0)
+    if(initializeServerPath(server) != 0)
     {
-        csvrShutdown(&server);
+        csvrShutdown(server);
         return 0;
     }
 
-    if(csvrServerStart(&server, NULL) == csvrSuccess)
+    if(csvrServerStart(server, NULL) == csvrSuccess)
     {
         printf("Server is running\n");
     }
     else
     {
-        csvrShutdown(&server);
+        csvrShutdown(server);
         printf("Cannot start server\n");
         return -1;
     }
@@ -85,7 +83,7 @@ int main(int arg,char**argv)
         }
     }
 
-    csvrShutdown(&server);
+    csvrShutdown(server);
 
     printf("\n\n-- Server is dead. Thank you.\n\n");
 
