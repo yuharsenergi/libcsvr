@@ -10,6 +10,7 @@
 #include <pthread.h>
 
 #include "libcsvr.h"
+#include "libcsvr_response.h"
 
 #ifndef PACKAGE_NAME
 #define PACKAGE_NAME CSVR_NAME
@@ -305,26 +306,30 @@ static csvrHttpVersion_e getHttpVersion(char*header)
     return version;
 }
 
-/**
- * @brief 
- * 
- * @param[in] server 
+/***************************************************************************************************************
+ * @brief Function to inintialize an allocated csvrServer_t pointer which will be used for csvr procedure.
+ *  
  * @param[in] port 
- * @return csvrErrCode_e 
- */
-csvrErrCode_e csvrInit(csvrServer_t *server, uint16_t port)
+ * @return If success, it will return allocated pointer of csvrServer_t. Otherwise, it will return NULL.
+ *         If it returns non NULL, the returned pointer must be freed using csvrShutdown function.
+ ***************************************************************************************************************/
+csvrServer_t *csvrInit(uint16_t port)
 {
+    csvrServer_t * server = NULL;
+    server = calloc(1, sizeof(csvrServer_t));
     if(server == NULL)
     {
-        return csvrInvalidInput;
+        return NULL;
     }
 
+    memset(server, 0, sizeof(csvrServer_t));
     server->port  = port;
     server->sockfd = -1;
     server->sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->sockfd == -1)
     {
-        return csvrCannotCreateSocket;
+        free(server);
+        return NULL;
     }
 
     /**< 2. Assign IP, dan PORT to be used for server *///
@@ -341,12 +346,14 @@ csvrErrCode_e csvrInit(csvrServer_t *server, uint16_t port)
         if(tryTimes > 10)
         {
             close(server->sockfd);
-            server->sockfd = -1;
-            return csvrCannotBindingSocket;
+            free(server);
+            return NULL;
         }
         tryTimes++;
         sleep(1);
     }
+
+    FREE(server->serverName);
 
     size_t lenServerName = strlen(CSVR_NAME) + strlen(CSVR_VERSION) + 1;
     server->serverName = calloc(lenServerName + 1, sizeof(char));
@@ -354,7 +361,7 @@ csvrErrCode_e csvrInit(csvrServer_t *server, uint16_t port)
     snprintf(server->serverName, lenServerName + 1, "%s-%s", (char*)CSVR_NAME, (char*)CSVR_VERSION);
 
     server->path = NULL;
-    return csvrSuccess;
+    return server;
 }
 
 /**
@@ -595,6 +602,7 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     else
     {
         csvrSendResponseError(data->request, csvrResponseBadGateway, "BAD GATEWAY");
+        csvrReadFinish(data->request, NULL);
     }
     FREE(data->request);
     pthread_exit(NULL);
@@ -604,11 +612,8 @@ void csvrAsyncronousThreadsCleanUp(void *arg)
 {
     csvrThreadsData_t *data = (csvrThreadsData_t *)arg;
     if(data)
-    {
-        FREE(data->request->message);
-        FREE(data->request->header);
-        FREE(data->request->content);
-        FREE(data->request->serverName);
+    {            
+        csvrReadFinish(data->request, NULL);
         FREE(data->request);
     }
     FREE(data);
@@ -635,9 +640,7 @@ static void *csvrAsyncronousThreads(void * arg)
         memset(request,0,sizeof(csvrRequest_t));
         threadsData->request = request;
         request->serverName = strdup(threadsData->server->serverName);
-        #if 0
-        // csvrRead((threadsData->server), request);
-        #else
+
         /* 1. Listen to socket */
         if (listen(threadsData->server->sockfd, totalConnectionAllowed) != 0)
         {
@@ -655,8 +658,7 @@ static void *csvrAsyncronousThreads(void * arg)
         if (request->clientfd < 0)
         {
             printf("[INFO] Cannot accept client\n");
-            close(request->clientfd);
-            FREE(request->serverName);
+            csvrReadFinish(request, NULL);
             FREE(request);
             continue;
         }
@@ -681,23 +683,18 @@ static void *csvrAsyncronousThreads(void * arg)
                 printf("[INFO] Cannot spawn threads\n");
                 csvrResponse_t response;
                 memset(&response,0,sizeof(csvrResponse_t));
-                // char * jsonData = "{\"status\":500,\"descriptions\":\"Internal server error\"}\n";
-                // csvrAddContent(&response, jsonData);
-                // csvrSendResponse(&request, &response);
+                char * jsonData = "{\"status\":500,\"descriptions\":\"Internal server error\"}\n";
+                csvrAddContent(&response, jsonData);
+                csvrSendResponse(&request, &response);
                 csvrReadFinish(request, &response);
                 FREE(request);
             }
         }
         else
         {
-            FREE(request->message);
-            FREE(request->header);
-            FREE(request->content);
-            FREE(request->serverName);
+            csvrReadFinish(request, NULL);
             FREE(request);
         }
-
-        #endif
     }
     threadsData->server->asyncFlag = false;
     pthread_cleanup_pop(0);
@@ -760,35 +757,31 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
     struct tm *tm = gmtime(&now);
     strftime(dtime, sizeof(dtime), "%a, %d %b %Y %H:%M:%S %Z", tm);
     
-    const char *template = "HTTP/1.1 200 OK\r\n"
-                            "Server: %s\r\n"
-                            "Accept-Ranges: none\r\n"
-                            "Vary: Accept-Encoding\r\n"
-                            "Last-Modified: %s\r\n"
-                            "Connection: closed\r\n"
-                            "Content-Type: application/json\r\n"
-                            "Content-Length: %u\r\n"
-                            "\r\n"
-                            "%s"
-                            ;
-
-    char *message = NULL;
-    size_t lenBody = strlen(response->body);
-    size_t lenMessage = strlen(template) + strlen(dtime) + lenBody + strlen(request->serverName) + 10;
-
-    message = malloc((lenMessage)*sizeof(char));
-    memset(message,0,lenMessage*sizeof(char));
-    
-    snprintf(message, lenMessage,
-        template, 
+    char *payload = NULL;
+    int retprint = -1;
+    retprint = asprintf(&payload,
+        "HTTP/1.1 200 OK\r\n"
+        "Server: %s\r\n"
+        "Accept-Ranges: none\r\n"
+        "Vary: Accept-Encoding\r\n"
+        "Last-Modified: %s\r\n"
+        "Connection: closed\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %lu\r\n"
+        "\r\n"
+        "%s", 
         request->serverName,
         dtime, 
-        lenBody,
+        strlen(response->body),
         response->body);
 
+    if(retprint == -1)
+    {
+        return csvrSystemFailure;
+    }
+
     ssize_t sendStatus = 0;
-    sendStatus = send(request->clientfd, message, strlen(message), 0);
-    close(request->clientfd);
+    sendStatus = send(request->clientfd, payload, strlen(payload), 0);
 
     if(sendStatus > 0)
     {
@@ -799,7 +792,7 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
         ret = csvrFailedSendData;
     }
 
-    FREE(message);
+    FREE(payload);
     return ret;
 }
 
@@ -841,7 +834,6 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
 
     ssize_t sendStatus = 0;
     sendStatus = send(request->clientfd, message, strlen(message), 0);
-    close(request->clientfd);
 
     if(sendStatus > 0)
     {
@@ -856,15 +848,23 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     return ret;
 }
 
+/************************************************************************************************************
+ * @brief Function to close the client socket and releasing all the request and/or response resourced that 
+ *        has been used.
+ * 
+ * @param[in,out] request  NULL allowed
+ * @param[in,out] response NULL allowed
+ * @return This function always return csvrSuccess
+ *************************************************************************************************************/
 csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *response)
 {
     if(request)
     {
+        close(request->clientfd);
         FREE(request->message);
         FREE(request->header);
         FREE(request->content);
         FREE(request->serverName);
-        memset(request, 0, sizeof(csvrRequest_t));
     }
 
     if(response)
@@ -879,50 +879,49 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *response)
 
         /* Free body */
         FREE(response->body);
-        memset(response, 0, sizeof(csvrResponse_t));
     }
 
     return csvrSuccess;
 }
 
-csvrErrCode_e csvrShutdown(csvrServer_t *input)
+csvrErrCode_e csvrShutdown(csvrServer_t *server)
 {
-    if(input == NULL)
+    if(server == NULL)
     {
         return csvrInvalidInput;
     }
 
     printf("[INFO] Shutdown server\n");
-    if(input->asyncFlag)
+    if(server->asyncFlag)
     {
         printf("[INFO] Canceling threads\n");
         pthread_cancel(serverThreads);
         pthread_join(serverThreads, NULL);
     }
 
-    FREE(input->serverName);
+    FREE(server->serverName);
     printf("[INFO] Closing running socket\n");
-    if(input->sockfd) close(input->sockfd);
-
-    if(input->path)
+    if(server->sockfd)
     {
-        struct csvrPathUrl_t* current = (input->path);
+        close(server->sockfd);
+    }
+
+    if(server->path)
+    {
+        struct csvrPathUrl_t* current = server->path;
         struct csvrPathUrl_t* next = NULL;
-        while (1)
+        while (current)
         {
-            if(current != NULL)
-            {
-                next = current->next;
-                printf("[INFO] Cleaning URI %s\n",current->name);
-                FREE(current->name);
-                FREE(current);
-            }
-            else break;
+            next = current->next;
+            printf("[INFO] Cleaning URI %s\n",current->name);
+            FREE(current->name);
+            FREE(current);
             current = next;
         }
-    
-        input->path = NULL;
+        server->path = NULL;
     }
+
+    free(server);
 
     return csvrSuccess;
 }

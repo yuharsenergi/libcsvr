@@ -85,6 +85,7 @@ typedef enum{
     /* Redirection response */
     
     /* Client Error response */
+    csvrResponseNotFound            = 404,
 
     /* Server Error response */
     csvrResponseInternalServerError = 500,
@@ -146,7 +147,7 @@ struct csvrPathUrl_t
     struct csvrPathUrl_t *next;
 };
 
-csvrErrCode_e csvrInit(csvrServer_t *input, uint16_t port);
+csvrServer_t *csvrInit(uint16_t port);
 csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData);
 
 csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName,...);
