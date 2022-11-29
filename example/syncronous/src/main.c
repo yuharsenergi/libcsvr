@@ -31,8 +31,6 @@ int main(int arg,char**argv)
 {
     printf("%s-%s\n",EXAMPLE_NAME,EXAMPLE_VERSION);
 
-    ssize_t retVal = 0;
-
     struct sigaction sigintHandler;
     struct sigaction sigtermHandler;
 
@@ -51,19 +49,19 @@ int main(int arg,char**argv)
     sigtermHandler.sa_flags = SA_SIGINFO;
     sigaction(SIGTERM, &sigtermHandler, NULL);
 
-    csvrServer_t server;
-    memset(&server, 0, sizeof(csvrServer_t));
-
-    if(csvrInit(&server, PORT) != csvrSuccess)
+    csvrServer_t *server = NULL;
+    server = csvrInit(PORT);
+    if(server == NULL)
     {
-        printf("Failed initialize server at port:%u\n",PORT);
+        printf("Failed initialize server at port:%u\n", server->port);
         return -1;
     }
+
     printf("Success init server\n");
 
-    if(initThreads(&server) != 0)
+    if(initThreads(server) != 0)
     {
-        csvrShutdown(&server);
+        csvrShutdown(server);
         printf("Failed create threads\n");
         return -1;
     }
@@ -78,8 +76,7 @@ int main(int arg,char**argv)
     }
 
     shutdownThreads();
-    csvrShutdown(&server);
-    joinThreads();
+    csvrShutdown(server);
 
     printf("\n-- Server is dead. Thank you\n\n");
 

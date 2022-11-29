@@ -19,44 +19,74 @@ void shutdownThreads(void);
 void joinThreads(void);
 void *threadServer(void *arg);
 
+typedef struct
+{
+    csvrRequest_t *request;
+    csvrResponse_t *response;
+}cbHandler_t;
+
+void threadsCallback(void *arg)
+{
+    cbHandler_t* data = (cbHandler_t*)arg;
+    if(data)
+    {
+        FREE(data->request);
+        FREE(data->response);
+        FREE(data);
+    }
+}
+
 void *threadServer(void *arg)
 {
-    csvrServer_t *input = (csvrServer_t*)arg;
+    csvrServer_t *server = (csvrServer_t*)arg;
 
     isRunning = true;
-    csvrRequest_t request;
-    while(isRunning == true)
+    cbHandler_t *cbHandler = NULL;
+    csvrRequest_t *request = NULL;
+    csvrResponse_t *response = NULL;
+    cbHandler = calloc(1, sizeof(cbHandler_t));
+    
+    pthread_cleanup_push(threadsCallback, NULL);
+    if(pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL) != 0)
     {
-        CLEARSTRUCT(request);
-        csvrRead(input, &request);
-
-        char *loggingPurpose = NULL;
-        if(request.content)
-        {
-            if(asprintf(&loggingPurpose, "%s",request.content) != -1)
-            {
-                trim_lf(loggingPurpose);
-            }
-        }
-        printf("[ <<< ] [%s][%s] %s\n",request.clientAddress, request.path, loggingPurpose ? loggingPurpose : "");
-        FREE(loggingPurpose);
-
-        csvrResponse_t response;
-        CLEARSTRUCT(response);
-        char * jsonData = "{\"status\":\"OK\"}\n";
-        csvrAddContent(&response, jsonData);
-        csvrSendResponse(input, &request, &response);
-        printf("[ >>> ] %s\n",jsonData);
-        csvrReadFinish(&request, &response);
+        pthread_exit(NULL);
     }
 
+    while(1)
+    {
+        request = calloc(1, sizeof(csvrRequest_t));
+        response = calloc(1, sizeof(csvrResponse_t));
+        if(request == NULL || response == NULL)
+        {
+            printf("Failed allocating request/response memory");
+            break;
+        }
+
+        memset(request, 0, sizeof(csvrRequest_t));
+        memset(response, 0, sizeof(csvrResponse_t));
+
+        /* Save pointer to cb handler, the pointer will be freed during pthread cancelation */
+        cbHandler->request  = request;
+        cbHandler->response = response;
+
+        csvrRead(server, request);
+        printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path, request->content ? request->content : "");
+
+        csvrAddContent(response, "{\"status\":\"OK\"}\n");
+        csvrSendResponse(request, response);
+        printf("[ >>> ] %s\n",response->body);
+        csvrReadFinish(request, response);
+        free(request);
+        free(response);
+    }
+    pthread_cleanup_pop(0);
     pthread_exit(NULL);
 }
 
-int initThreads(csvrServer_t *input)
+int initThreads(csvrServer_t *server)
 {
     int ret = -1;
-    ret = pthread_create(&thrServer,NULL,threadServer,(void*)input);
+    ret = pthread_create(&thrServer,NULL,threadServer,(void*)server);
     if(ret != 0)
     {
         printf("Failed init server threads!\n");
@@ -73,4 +103,5 @@ void joinThreads(void)
 void shutdownThreads(void)
 {
     if(isRunning) pthread_cancel(thrServer);
+    pthread_join(thrServer,NULL);
 }

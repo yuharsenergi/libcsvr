@@ -4,7 +4,7 @@
 #include <threads.h>
 #include "libcsvr.h"
 
-int initThreads(csvrServer_t *input);
+int initThreads(csvrServer_t *);
 void shutdownThreads(void);
 void joinThreads(void);
 
