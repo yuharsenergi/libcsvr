@@ -26,6 +26,7 @@
 #define BODY_SEPARATOR            "\x0D\x0A\x0D\x0A"
 #define DEFAULT_MESSAGE_ALLOCATION 3
 #define DEFAULT_SERVER_NAME       CSVR_NAME"-"CSVR_VERSION
+#define GET_ERRNO() {printf("errno : (%d) %s\n", errno,strerror(errno));}
 
 #define MINIMUM_REQUEST_TYPE_LENGTH strlen("PUT")
 #define MAXIMUM_REQUEST_TYPE_LENGTH strlen("DELETE")
@@ -319,6 +320,7 @@ csvrServer_t *csvrInit(uint16_t port)
     server = calloc(1, sizeof(csvrServer_t));
     if(server == NULL)
     {
+        printf("[INFO] Cannot allocate server object memory\n");
         return NULL;
     }
 
@@ -328,6 +330,15 @@ csvrServer_t *csvrInit(uint16_t port)
     server->sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->sockfd == -1)
     {
+        printf("[INFO] Cannot create socket: ");GET_ERRNO();
+        free(server);
+        return NULL;
+    }
+
+    int enable = 1;
+    if(setsockopt(server->sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) == -1)
+    {
+        printf("[INFO] Cannot sersockopt socket: ");GET_ERRNO();
         free(server);
         return NULL;
     }
@@ -345,6 +356,7 @@ csvrServer_t *csvrInit(uint16_t port)
     {
         if(tryTimes > 10)
         {
+            printf("[INFO] Cannot create socket: ");GET_ERRNO();
             close(server->sockfd);
             free(server);
             return NULL;
@@ -408,7 +420,7 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...
     return csvrSuccess;
 }
 
-static csvrErrCode_e csvrClientReader(csvrRequest_t *output)
+static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
 {
     if(output == NULL)
     {
@@ -450,7 +462,7 @@ static csvrErrCode_e csvrClientReader(csvrRequest_t *output)
         {
             output->header = calloc(lenMessage + 1, sizeof(char));
             memset(output->header, 0, lenMessage + 1);
-            snprintf(output->header, lenMessage + 1, "%s", message);
+            memcpy(output->header, message, lenMessage);
 
             /* Get request type*/
             if(output->type == csvrTypeNotKnown)
@@ -506,7 +518,7 @@ static csvrErrCode_e csvrClientReader(csvrRequest_t *output)
 
     output->message = calloc(lenMessage + 1, sizeof(char));
     memset(output->message, 0, lenMessage + 1);
-    snprintf(output->message, lenMessage + 1, "%s", message);
+    memcpy(output->message, message, lenMessage);
     FREE(message);
     return csvrSuccess;
 }
@@ -596,11 +608,13 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     path = csvrSearchUri(data->server->path, data->request->path);
     if(path)
     {
+        printf("[INFO] Path [%s] registered\n",data->request->path);
         (*path->callbackFunction)(data->request, data->userData);
     }
     /* If path not found */
     else
     {
+        printf("[INFO] Path [%s] is not registered\n",data->request->path);
         csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
     }
     csvrReadFinish(data->request, NULL);
@@ -674,8 +688,10 @@ static void *csvrAsyncronousThreads(void * arg)
 
         pthread_t threadClient;
         /* if success, do the procedure based on the path */
+        printf("[INFO][ <<< ] Accept %s\n",request->clientAddress);
         if(csvrClientReader(request) == csvrSuccess)
         {
+            printf("[INFO][ <<< ][%s] %s\n",typeStringTranslator[request->type], request->path);
             int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)threadsData);
             /* If success, detach the threads */
             if(status == 0)
@@ -693,6 +709,7 @@ static void *csvrAsyncronousThreads(void * arg)
         }
         else
         {
+            printf("[INFO][ <<< ] Cannot read client socked: %s\n", strerror(errno));
             csvrReadFinish(request, NULL);
             FREE(request);
         }
@@ -875,7 +892,24 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *response)
 {
     if(request)
     {
-        close(request->clientfd);
+        int sockType = 0;
+        int ret = 0;
+        socklen_t optlen = sizeof(sockType);
+        ret = getsockopt(request->clientfd,SOL_SOCKET,SO_TYPE, &sockType, &optlen);
+        /* Shutdown the read and write connections */
+        if(ret == 0)
+        {
+            ret = shutdown(request->clientfd, SHUT_RDWR);
+            /* catch the errno */
+            if(ret == 0)
+            {
+                ret = close(request->clientfd);
+                if(ret < 0)
+                {
+                    printf("[INFO] Closing client socket failed: (%d) %s",errno, strerror(errno));
+                }
+            }
+        }
         FREE(request->message);
         FREE(request->header);
         FREE(request->content);
@@ -915,10 +949,29 @@ csvrErrCode_e csvrShutdown(csvrServer_t *server)
     }
 
     FREE(server->serverName);
+
     printf("[INFO] Closing running socket\n");
-    if(server->sockfd)
+    int sockType = 0;
+    int ret = 0;
+    socklen_t optlen = sizeof(sockType);
+    ret = getsockopt(server->sockfd,SOL_SOCKET,SO_TYPE,&sockType, &optlen);
+    /* Shutdown the read and write connections */
+    if(ret == 0)
     {
-        close(server->sockfd);
+        ret = shutdown(server->sockfd, SHUT_RDWR);
+        /* catch the errno */
+        if(ret == 0)
+        {
+            ret = close(server->sockfd);
+            if(ret < 0)
+            {
+                printf("[INFO] Closing server socket failed: (%d) %s",errno, strerror(errno));
+            }
+            else
+            {
+                printf("[INFO] Server closed properly\n");
+            }
+        }
     }
 
     if(server->path)
@@ -963,36 +1016,44 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     }
 
     char *buffer = NULL;
-    size_t lenBuffer = strlen(key) + strlen(": ") + strlen(value) + strlen(HEADER_SEPARATOR) + 1;
-    buffer = malloc(lenBuffer*sizeof(char));
-    if(buffer == NULL)
+    int retprint = asprintf(&buffer,"%s: %s%s",key,value,HEADER_SEPARATOR);
+    if(retprint == -1)
     {
         return csvrSystemFailure;
     }
 
-    memset(buffer,0,lenBuffer);
-    snprintf(buffer, lenBuffer, "%s: %s%s",key,value,HEADER_SEPARATOR);
-
     char **newHeader = NULL;
-    input->header.total++;
-    newHeader = calloc(input->header.total, sizeof(char*));
+    newHeader = calloc(input->header.total + 1, sizeof(char*));
     if(newHeader == NULL)
     {
         FREE(buffer);
         return csvrSystemFailure;
     }
+    input->header.total++;
 
     size_t i = 0;
     for(;i < (input->header.total - 1);i++)
     {
-        newHeader[i] = calloc(strlen(input->header.data[i]) + 1, sizeof(char));
-        memset(newHeader[i], 0, strlen(input->header.data[i]) + 1);
-        snprintf(newHeader[i],  strlen(input->header.data[i]) + 1, "%s", input->header.data[i]);
+        retprint = asprintf(&(newHeader[i]), "%s", input->header.data[i]);
+        if(retprint == -1)
+        {
+            FREE(buffer);
+            return csvrSystemFailure;
+        }
+        // newHeader[i] = calloc(strlen(input->header.data[i]) + 1, sizeof(char));
+        // memset(newHeader[i], 0, strlen(input->header.data[i]) + 1);
+        // snprintf(newHeader[i],  strlen(input->header.data[i]) + 1, 
         FREE(input->header.data[i]);
     }
-    newHeader[input->header.total - 1] = calloc(strlen(buffer) + 1, sizeof(char));
-    memset(newHeader[input->header.total - 1], 0, strlen(buffer) + 1);
-    snprintf(newHeader[input->header.total - 1], strlen(buffer), "%s", buffer);
+    retprint = asprintf(&(newHeader[input->header.total - 1]), "%s", buffer);
+    if(retprint == -1)
+    {
+        FREE(buffer);
+        return csvrSystemFailure;
+    }
+    // newHeader[input->header.total - 1] = calloc(strlen(buffer) + 1, sizeof(char));
+    // memset(newHeader[input->header.total - 1], 0, strlen(buffer) + 1);
+    // snprintf(newHeader[input->header.total - 1], strlen(buffer), "%s", buffer);
     FREE(buffer);
 
     FREE(input->header.data)
@@ -1084,13 +1145,19 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
     va_end(aptr);
     if(ret == -1)
     {
-        return -1;
+        return csvrSystemFailure;
     }
 
     FREE(input->body);
-    input->body = calloc(strlen(bodyTemp) + 1, sizeof(char));
-    memset(input->body, 0, strlen(bodyTemp) + 1);
-    snprintf(input->body, strlen(bodyTemp) + 1, "%s", bodyTemp);
+    ret = asprintf(&(input->body), "%s", bodyTemp);
+    if(ret == -1)
+    {
+        FREE(bodyTemp);
+        return csvrSystemFailure;
+    }
+    // input->body = calloc(strlen(bodyTemp) + 1, sizeof(char));
+    // memset(input->body, 0, strlen(bodyTemp) + 1);
+    // snprintf(input->body, strlen(bodyTemp) + 1, "%s", bodyTemp);
     FREE(bodyTemp);
     return csvrSuccess;
 }
@@ -1110,7 +1177,7 @@ void *handlerRequest(csvrRequest_t *request, void *userData)
 /**
  * @brief Compile with :
  * 
- *    $ gcc src/libcsvr.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST -lpthread
+ *    $ gcc src/*.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST -lpthread
  *    $ ./test
  * 
  */
@@ -1142,8 +1209,6 @@ int main()
     printf("Servername %s\n",DEFAULT_SERVER_NAME);
 
     csvrResponse_t response;
-    csvrRequest_t request;
-    memset(&request, 0, sizeof(csvrRequest_t));
     memset(&response, 0, sizeof(csvrResponse_t));
     csvrAddCustomHeader(&response, "session-uuid","a58ae080-6efc-11ed-b9d7-0800274047c4");
     csvrAddCustomHeader(&response, "sender-name","Ergi");
@@ -1153,33 +1218,36 @@ int main()
     {
         printf("[%d] %s\n",i,response.header.data[i]);
     }
-    csvrReadFinish(&request,&response);
+    csvrReadFinish(NULL,&response);
 
-    csvrServer_t server;
-    memset(&server, 0, sizeof(csvrServer_t));
+    csvrServer_t * server  = NULL;
+    server = calloc(1, sizeof(csvrServer_t));
+    memset(server, 0, sizeof(csvrServer_t));
 
-    csvrAddPath(&server, "/", csvrTypePost, handlerRequest);
-    csvrAddPath(&server, "/time", csvrTypeGet, handlerRequest);
-    csvrAddPath(&server, "/roamer", csvrTypePost, handlerRequest);
+    csvrAddPath(server, "/", csvrTypePost, handlerRequest);
+    csvrAddPath(server, "/time", csvrTypeGet, handlerRequest);
+    csvrAddPath(server, "/roamer", csvrTypePost, handlerRequest);
     
     struct csvrPathUrl_t * link = NULL;
     
-    memset(&request, 0, sizeof(csvrRequest_t));
-    strcpy(request.path,"/time");
-    link = csvrSearchUri(server.path, "/time");
-    (*link->callbackFunction)(&request, &response);
+    csvrRequest_t *request = NULL;
+    request = calloc(1, sizeof(csvrRequest_t));
+    memset(request, 0, sizeof(csvrRequest_t));
+    strcpy(request->path,"/time");
+    link = csvrSearchUri(server->path, "/time");
+    (*link->callbackFunction)(request, &response);
     
-    memset(&request, 0, sizeof(csvrRequest_t));
-    strcpy(request.path,"/roamer");
-    link = csvrSearchUri(server.path, "/roamer");
-    (*link->callbackFunction)(&request, &response);
+    memset(request, 0, sizeof(csvrRequest_t));
+    strcpy(request->path,"/roamer");
+    link = csvrSearchUri(server->path, "/roamer");
+    (*link->callbackFunction)(request, &response);
 
-    memset(&request, 0, sizeof(csvrRequest_t));
-    strcpy(request.path,"/");
-    link = csvrSearchUri(server.path, "/");
-    (*link->callbackFunction)(&request, &response);
-
-    csvrShutdown(&server);
+    memset(request, 0, sizeof(csvrRequest_t));
+    strcpy(request->path,"/");
+    link = csvrSearchUri(server->path, "/");
+    (*link->callbackFunction)(request, &response);
+    FREE(request);
+    csvrShutdown(server);
     return 0;
 }
 #endif

@@ -30,10 +30,13 @@ void threadsCallback(void *arg)
     cbHandler_t* data = (cbHandler_t*)arg;
     if(data)
     {
+        csvrReadFinish(data->request, data->response);
         FREE(data->request);
         FREE(data->response);
         FREE(data);
     }
+    printf("Server threads is dead!\n");
+    isRunning = false;
 }
 
 void *threadServer(void *arg)
@@ -45,10 +48,16 @@ void *threadServer(void *arg)
     csvrRequest_t *request = NULL;
     csvrResponse_t *response = NULL;
     cbHandler = calloc(1, sizeof(cbHandler_t));
-    
-    pthread_cleanup_push(threadsCallback, NULL);
+    if(cbHandler == NULL)
+    {
+        isRunning = false;
+        pthread_exit(NULL);
+    }
+
+    pthread_cleanup_push(threadsCallback, (void*)cbHandler);
     if(pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL) != 0)
     {
+        FREE(cbHandler);
         pthread_exit(NULL);
     }
 
@@ -72,13 +81,16 @@ void *threadServer(void *arg)
         csvrRead(server, request);
         printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path, request->content ? request->content : "");
 
-        csvrAddContent(response, "{\"status\":\"OK\"}\n");
+        csvrAddContent(response, "{\"status\":\"OK\"}");
         csvrSendResponse(request, response);
         printf("[ >>> ] %s\n",response->body);
         csvrReadFinish(request, response);
         free(request);
         free(response);
+        request = NULL;
+        response = NULL;
     }
+    FREE(cbHandler);
     pthread_cleanup_pop(0);
     pthread_exit(NULL);
 }
