@@ -26,4 +26,5 @@ AC_PROG_LIBTOOL
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES(Makefile)
 AC_CONFIG_FILES(src/Makefile)
+AC_CONFIG_FILES(include/Makefile)
 AC_OUTPUT
