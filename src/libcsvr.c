@@ -596,11 +596,13 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     path = csvrSearchUri(data->server->path, data->request->path);
     if(path)
     {
+        printf("[INFO] Path [%s] registered\n",data->request->path);
         (*path->callbackFunction)(data->request, data->userData);
     }
     /* If path not found */
     else
     {
+        printf("[INFO] Path [%s] is not registered\n",data->request->path);
         csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
     }
     csvrReadFinish(data->request, NULL);
@@ -674,8 +676,10 @@ static void *csvrAsyncronousThreads(void * arg)
 
         pthread_t threadClient;
         /* if success, do the procedure based on the path */
+        printf("[INFO][ <<< ] Accept %s\n",request->clientAddress);
         if(csvrClientReader(request) == csvrSuccess)
         {
+            printf("[INFO][ <<< ][%s] %s\n",typeStringTranslator[request->type], request->path);
             int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)threadsData);
             /* If success, detach the threads */
             if(status == 0)
@@ -693,6 +697,7 @@ static void *csvrAsyncronousThreads(void * arg)
         }
         else
         {
+            printf("[INFO][ <<< ] Cannot read client socked: %s\n", strerror(errno));
             csvrReadFinish(request, NULL);
             FREE(request);
         }
@@ -875,7 +880,10 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *response)
 {
     if(request)
     {
-        close(request->clientfd);
+        if(request->clientfd)
+        {
+            close(request->clientfd);
+        }
         FREE(request->message);
         FREE(request->header);
         FREE(request->content);
@@ -1142,8 +1150,6 @@ int main()
     printf("Servername %s\n",DEFAULT_SERVER_NAME);
 
     csvrResponse_t response;
-    csvrRequest_t request;
-    memset(&request, 0, sizeof(csvrRequest_t));
     memset(&response, 0, sizeof(csvrResponse_t));
     csvrAddCustomHeader(&response, "session-uuid","a58ae080-6efc-11ed-b9d7-0800274047c4");
     csvrAddCustomHeader(&response, "sender-name","Ergi");
@@ -1153,33 +1159,36 @@ int main()
     {
         printf("[%d] %s\n",i,response.header.data[i]);
     }
-    csvrReadFinish(&request,&response);
+    csvrReadFinish(NULL,&response);
 
-    csvrServer_t server;
-    memset(&server, 0, sizeof(csvrServer_t));
+    csvrServer_t * server  = NULL;
+    server = calloc(1, sizeof(csvrServer_t));
+    memset(server, 0, sizeof(csvrServer_t));
 
-    csvrAddPath(&server, "/", csvrTypePost, handlerRequest);
-    csvrAddPath(&server, "/time", csvrTypeGet, handlerRequest);
-    csvrAddPath(&server, "/roamer", csvrTypePost, handlerRequest);
+    csvrAddPath(server, "/", csvrTypePost, handlerRequest);
+    csvrAddPath(server, "/time", csvrTypeGet, handlerRequest);
+    csvrAddPath(server, "/roamer", csvrTypePost, handlerRequest);
     
     struct csvrPathUrl_t * link = NULL;
     
-    memset(&request, 0, sizeof(csvrRequest_t));
-    strcpy(request.path,"/time");
-    link = csvrSearchUri(server.path, "/time");
-    (*link->callbackFunction)(&request, &response);
+    csvrRequest_t *request = NULL;
+    request = calloc(1, sizeof(csvrRequest_t));
+    memset(request, 0, sizeof(csvrRequest_t));
+    strcpy(request->path,"/time");
+    link = csvrSearchUri(server->path, "/time");
+    (*link->callbackFunction)(request, &response);
     
-    memset(&request, 0, sizeof(csvrRequest_t));
-    strcpy(request.path,"/roamer");
-    link = csvrSearchUri(server.path, "/roamer");
-    (*link->callbackFunction)(&request, &response);
+    memset(request, 0, sizeof(csvrRequest_t));
+    strcpy(request->path,"/roamer");
+    link = csvrSearchUri(server->path, "/roamer");
+    (*link->callbackFunction)(request, &response);
 
-    memset(&request, 0, sizeof(csvrRequest_t));
-    strcpy(request.path,"/");
-    link = csvrSearchUri(server.path, "/");
-    (*link->callbackFunction)(&request, &response);
-
-    csvrShutdown(&server);
+    memset(request, 0, sizeof(csvrRequest_t));
+    strcpy(request->path,"/");
+    link = csvrSearchUri(server->path, "/");
+    (*link->callbackFunction)(request, &response);
+    FREE(request);
+    csvrShutdown(server);
     return 0;
 }
 #endif
