@@ -1,0 +1,4 @@
+/lib
+/include
+m4/*.m4
+**/m4/*.m4
