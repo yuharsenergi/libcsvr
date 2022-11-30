@@ -420,7 +420,7 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...
     return csvrSuccess;
 }
 
-static csvrErrCode_e csvrClientReader(csvrRequest_t *output)
+static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
 {
     if(output == NULL)
     {
@@ -1034,14 +1034,26 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     size_t i = 0;
     for(;i < (input->header.total - 1);i++)
     {
-        newHeader[i] = calloc(strlen(input->header.data[i]) + 1, sizeof(char));
-        memset(newHeader[i], 0, strlen(input->header.data[i]) + 1);
-        snprintf(newHeader[i],  strlen(input->header.data[i]) + 1, "%s", input->header.data[i]);
+        retprint = asprintf(&(newHeader[i]), "%s", input->header.data[i]);
+        if(retprint == -1)
+        {
+            FREE(buffer);
+            return csvrSystemFailure;
+        }
+        // newHeader[i] = calloc(strlen(input->header.data[i]) + 1, sizeof(char));
+        // memset(newHeader[i], 0, strlen(input->header.data[i]) + 1);
+        // snprintf(newHeader[i],  strlen(input->header.data[i]) + 1, 
         FREE(input->header.data[i]);
     }
-    newHeader[input->header.total - 1] = calloc(strlen(buffer) + 1, sizeof(char));
-    memset(newHeader[input->header.total - 1], 0, strlen(buffer) + 1);
-    snprintf(newHeader[input->header.total - 1], strlen(buffer), "%s", buffer);
+    retprint = asprintf(&(newHeader[input->header.total - 1]), "%s", buffer);
+    if(retprint == -1)
+    {
+        FREE(buffer);
+        return csvrSystemFailure;
+    }
+    // newHeader[input->header.total - 1] = calloc(strlen(buffer) + 1, sizeof(char));
+    // memset(newHeader[input->header.total - 1], 0, strlen(buffer) + 1);
+    // snprintf(newHeader[input->header.total - 1], strlen(buffer), "%s", buffer);
     FREE(buffer);
 
     FREE(input->header.data)
@@ -1133,13 +1145,19 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
     va_end(aptr);
     if(ret == -1)
     {
-        return -1;
+        return csvrSystemFailure;
     }
 
     FREE(input->body);
-    input->body = calloc(strlen(bodyTemp) + 1, sizeof(char));
-    memset(input->body, 0, strlen(bodyTemp) + 1);
-    snprintf(input->body, strlen(bodyTemp) + 1, "%s", bodyTemp);
+    ret = asprintf(&(input->body), "%s", bodyTemp);
+    if(ret == -1)
+    {
+        FREE(bodyTemp);
+        return csvrSystemFailure;
+    }
+    // input->body = calloc(strlen(bodyTemp) + 1, sizeof(char));
+    // memset(input->body, 0, strlen(bodyTemp) + 1);
+    // snprintf(input->body, strlen(bodyTemp) + 1, "%s", bodyTemp);
     FREE(bodyTemp);
     return csvrSuccess;
 }
@@ -1159,7 +1177,7 @@ void *handlerRequest(csvrRequest_t *request, void *userData)
 /**
  * @brief Compile with :
  * 
- *    $ gcc src/libcsvr.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST -lpthread
+ *    $ gcc src/*.c -Iinclude/ -o test -D_GNU_SOURCE -DTEST -lpthread
  *    $ ./test
  * 
  */
