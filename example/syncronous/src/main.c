@@ -53,7 +53,7 @@ int main(int arg,char**argv)
     server = csvrInit(PORT);
     if(server == NULL)
     {
-        printf("Failed initialize server at port:%u\n", server->port);
+        printf("Failed initialize server at port:%u\n", PORT);
         return -1;
     }
 
