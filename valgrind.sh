@@ -13,5 +13,19 @@ if [ "$fileType" != "application"  ]; then
     exit 0
 fi
 
-mkdir -p valgrind
-valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=valgrind/$1-valgrind-check.txt $1
+fileName=$1
+BIN=$1
+
+if [[ "$1" == *"/"* ]];
+then
+    fileName=$($1 | rev | cut -d"/" -f1 | rev)
+fi
+
+logFile="valgrind/$fileName-valgrind-check.txt"
+
+mkdir -p $(pwd)/valgrind
+echo "File location : $1"
+echo "Filename : $fileName"
+echo "Logfile  : $logFile"
+echo "valgrind --leak-check=full --show-leak-kinds=all --verbose --log-file=$logFile $BIN"
+valgrind --leak-check=full --show-leak-kinds=all --verbose --log-file=$logFile $BIN
