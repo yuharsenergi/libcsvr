@@ -1,0 +1,7 @@
+*.gcda
+*.gcno
+*.html
+*.png
+*.css
+*.info
+unit-test/bin
