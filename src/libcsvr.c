@@ -320,7 +320,7 @@ csvrServer_t *csvrInit(uint16_t port)
     server = calloc(1, sizeof(csvrServer_t));
     if(server == NULL)
     {
-        printf("[INFO] Cannot allocate server object memory\n");
+        printf("[ERROR] Cannot allocate server object memory\n");
         return NULL;
     }
 
@@ -330,7 +330,7 @@ csvrServer_t *csvrInit(uint16_t port)
     server->sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->sockfd == -1)
     {
-        printf("[INFO] Cannot create socket: ");GET_ERRNO();
+        printf("[ERROR] Cannot create socket: ");GET_ERRNO();
         free(server);
         return NULL;
     }
@@ -338,7 +338,7 @@ csvrServer_t *csvrInit(uint16_t port)
     int enable = 1;
     if(setsockopt(server->sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) == -1)
     {
-        printf("[INFO] Cannot sersockopt socket: ");GET_ERRNO();
+        printf("[ERROR] Cannot setsockopt socket: ");GET_ERRNO();
         free(server);
         return NULL;
     }
@@ -356,11 +356,12 @@ csvrServer_t *csvrInit(uint16_t port)
     {
         if(tryTimes > 10)
         {
-            printf("[INFO] Cannot create socket: ");GET_ERRNO();
+            printf("[ERROR] Cannot create socket: ");GET_ERRNO();
             close(server->sockfd);
             free(server);
             return NULL;
         }
+        printf("[DEBUG] Try %d binding socket failed: ", tryTimes);GET_ERRNO();
         tryTimes++;
         sleep(1);
     }
@@ -599,6 +600,7 @@ struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path)
     return current;
 }
 
+#if 0
 static void *csvrProcessUserProcedureThreads(void *arg)
 {
     csvrThreadsData_t *data = (csvrThreadsData_t*)arg;
@@ -621,6 +623,49 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     FREE(data->request);
     pthread_exit(NULL);
 }
+#else
+static void *csvrProcessUserProcedureThreads(void *arg)
+{
+    csvrThreadsData_t *data = (csvrThreadsData_t*)arg;
+    if(data == NULL || data->server == NULL || data->request == NULL)
+    {
+        printf("[INFO] Invalid input during user procedure\n");
+        csvrReadFinish(data->request, NULL);
+        pthread_exit(NULL);
+    }
+
+    do
+    {
+        if(csvrClientReader(data->request) == csvrSuccess)
+        {
+            printf("[%s] %s\n",typeStringTranslator[data->request->type], data->request->path);
+            struct csvrPathUrl_t * path = NULL;
+            path = csvrSearchUri(data->server->path, data->request->path);
+            if(path)
+            {
+                (*path->callbackFunction)(data->request, data->userData);
+            }
+            /* If path not found */
+            else
+            {
+                printf("\n[INFO] Path [%s] is not registered\n",data->request->path);
+                csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
+            }
+        }
+        else
+        {
+            printf("\n[INFO][ <<< ] Cannot read client socked: %s\n", strerror(errno));
+            csvrReadFinish(data->request, NULL);
+        }
+        FREE(data->request);
+    } while (0);
+
+    /* To reduce OS process */
+    usleep(250000);
+
+    pthread_exit(NULL);
+}
+#endif
 
 void csvrAsyncronousThreadsCleanUp(void *arg)
 {
@@ -629,10 +674,11 @@ void csvrAsyncronousThreadsCleanUp(void *arg)
     {            
         csvrReadFinish(data->request, NULL);
         FREE(data->request);
+        FREE(data);
     }
-    FREE(data);
 }
 
+#if 0
 static void *csvrAsyncronousThreads(void * arg)
 {
     csvrThreadsData_t *threadsData = (csvrThreadsData_t *)arg;
@@ -718,6 +764,102 @@ static void *csvrAsyncronousThreads(void * arg)
     pthread_cleanup_pop(0);
     pthread_exit(NULL);
 }
+#else
+static void *csvrAsyncronousThreads(void * arg)
+{
+    csvrThreadsData_t *threadsData = (csvrThreadsData_t *)arg;
+    if(threadsData == NULL || threadsData->server == NULL) pthread_exit(NULL);
+
+    threadsData->server->asyncFlag = true;
+
+    pthread_cleanup_push(csvrAsyncronousThreadsCleanUp, (void*)threadsData);
+    if(pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL) != 0)
+    {
+        pthread_exit(NULL);
+    }
+
+    printf("[INFO] Server is listening at port %u\n", threadsData->server->port);
+    while(1)
+    {
+        /* 1. Listen to socket */
+        if (listen(threadsData->server->sockfd, totalConnectionAllowed) != 0)
+        {
+            printf("[INFO] Failed listen socket: %s\n", strerror(errno));
+            break;
+        }
+
+        csvrRequest_t *request = NULL;
+        request = calloc(1, sizeof(csvrRequest_t));
+        if(request == NULL)
+        {
+            break;
+        }
+
+        /* save the pointer here */
+        memset(request,0,sizeof(csvrRequest_t));
+        threadsData->request = request;
+        request->serverName  = strdup(threadsData->server->serverName);
+
+        struct sockaddr_in client;  
+        memset(&client,0,sizeof(struct sockaddr_in));
+
+        /* 2. Get the socket configuration to get the client address */
+        socklen_t peerAddrSize = sizeof(client);
+        request->clientfd = -1;
+        request->clientfd = accept(threadsData->server->sockfd, (struct sockaddr*)&client, &peerAddrSize);
+        if (request->clientfd < 0)
+        {
+            printf("[ERROR] Cannot accept client\n");
+            csvrReadFinish(request, NULL);
+            FREE(request);
+            break;
+        }
+
+        struct in_addr ipAddr = client.sin_addr;
+        memset(request->clientAddress,0,sizeof(request->clientAddress));
+        inet_ntop(AF_INET, &ipAddr, request->clientAddress, INET_ADDRSTRLEN );
+
+        /* if success, do the procedure based on the path */
+        pthread_t threadClient;
+        int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)threadsData);
+        /* If success, detach the threads */
+        if(status == 0)
+        {
+            pthread_detach(threadClient);
+        }
+        /* If failed, send response and close the connection */
+        else
+        {
+            printf("[ERROR] Cannot spawn threads\n");
+
+            csvrResponse_t *response = NULL;
+            response = calloc(1, sizeof(csvrResponse_t));
+            if(response == NULL)
+            {
+                printf("[ERROR] Failed allocating request/response memory");
+                usleep(200000);
+                continue;
+            }
+            memset(response,0,sizeof(csvrResponse_t));
+
+            if(csvrClientReader(request) == csvrSuccess)
+            {
+                csvrSendResponseError(request, csvrResponseInternalServerError, "Internal Server Error");
+                printf("[DEBUG] %u: Internal Server Error\n",csvrResponseInternalServerError);
+            }
+            csvrReadFinish(request, response);
+            FREE(request);
+            FREE(response);
+        }
+        /* By trial and error, this is to avoid bad file descriptor */
+        usleep(100000);
+    }
+    threadsData->server->asyncFlag = false;
+    pthread_cleanup_pop(0);
+    pthread_exit(NULL);
+}
+#endif
+
 /**
  * @brief If this function is called, it will spawn threads to handle incoming request
  * 
@@ -746,6 +888,9 @@ csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
         FREE(threadsData);
         return csvrSystemFailure;
     }
+
+    sem_init(&(server->killFlag), 0, 0);
+
     return csvrSuccess;
 }
 
@@ -906,7 +1051,7 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *response)
                 ret = close(request->clientfd);
                 if(ret < 0)
                 {
-                    printf("[INFO] Closing client socket failed: (%d) %s",errno, strerror(errno));
+                    printf("[ERROR] Closing client socket failed: (%d) %s",errno, strerror(errno));
                 }
             }
         }
@@ -986,12 +1131,26 @@ csvrErrCode_e csvrShutdown(csvrServer_t *server)
             FREE(current);
             current = next;
         }
-        server->path = NULL;
+
+        printf("[INFO] Cleaning URI finished\n");
+
+        // server->path = NULL;
     }
 
+
     free(server);
+    printf("[INFO] Shutdown procedure finished\n");
 
     return csvrSuccess;
+}
+
+csvrErrCode_e csvrJoin(csvrServer_t *server)
+{
+    if(!sem_wait(&(server->killFlag)))
+    {
+        return csvrSuccess;
+    }
+    return csvrNotAnError;
 }
 
 /**

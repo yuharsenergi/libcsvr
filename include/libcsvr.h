@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <semaphore.h>
 
 #define CSVR_NAME    "libcsvr"
 #define CSVR_VERSION "1.0"
@@ -133,6 +134,8 @@ typedef struct{
 typedef struct
 {
     bool asyncFlag;
+    sem_t killFlag;
+
     int sockfd;
     char *serverName;
     uint16_t port;
@@ -149,6 +152,7 @@ struct csvrPathUrl_t
 
 csvrServer_t *csvrInit(uint16_t port);
 csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData);
+csvrErrCode_e csvrJoin(csvrServer_t *server);
 
 csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName,...);
 csvrErrCode_e csvrShutdown(csvrServer_t *input);
