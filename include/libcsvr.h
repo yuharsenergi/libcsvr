@@ -164,5 +164,6 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
 csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value);
 csvrErrCode_e csvrAddContent(csvrResponse_t*input, char *content,...);
 csvrErrCode_e csvrAddPath(csvrServer_t *input, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *));
+long csvrGetTotalConnection();
 
 #endif
