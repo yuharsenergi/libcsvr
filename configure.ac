@@ -1,8 +1,18 @@
-dnl Process this file with autoconf to produce a configure script.
+#################################################################
+#                         libcsvr-1.0                           #
+#################################################################
+# Copyright (C) 2022, Yuharsen Ergi.                            #
+# All Rights Reserved.                                          #
+# This file is distributed under the MIT License.               #
+#                                                               #
+# Author:  yuharsenergi                             2022-12-01  #
+#################################################################
 
 AC_PREREQ(2.59)
-AC_COPYRIGHT(GNU General Public License)
-AC_INIT(libcsvr, 1.0, yuharsenergi@gmail.com)
+
+AC_COPYRIGHT(MIT License)
+
+AC_INIT([libcsvr],[1.0],[yuharsenergi@gmail.com],,[https://github.com/yuharsenergi/libcsvr])
 
 AC_PROG_CC
 
