@@ -41,6 +41,7 @@ static pthread_t serverThreads;
 sem_t waitThread;
 pthread_mutex_t lockRead = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t lockCount = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lockSearchPath = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct
 {
@@ -651,9 +652,15 @@ struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path)
 static void *csvrProcessUserProcedureThreads(void *arg)
 {
     csvrThreadsData_t *data = (csvrThreadsData_t*)arg;
-    if(data == NULL || data->server == NULL || data->request == NULL)
+    if(data == NULL)
     {
-        printf("[INFO] Invalid input during user procedure\n");
+        printf("[INFO] Invalid data during user procedure\n");
+        pthread_exit(NULL);
+    }
+    if(data->server == NULL || data->request == NULL)
+    {
+        if(data->server == NULL) printf("[INFO] Invalid data->server during user procedure\n");
+        if(data->request == NULL) printf("[INFO] Invalid data->request during user procedure\n");
         csvrReadFinish(data->request, NULL);
         sem_post(&waitThread);
         pthread_exit(NULL);
@@ -668,7 +675,11 @@ static void *csvrProcessUserProcedureThreads(void *arg)
         {
             printf("[%s] %s\n",typeStringTranslator[data->request->type], data->request->path);
             struct csvrPathUrl_t * path = NULL;
-            path = csvrSearchUri(data->server->path, data->request->path);
+            struct csvrPathUrl_t * current = NULL;
+            pthread_mutex_lock(&lockSearchPath);
+            current = data->server->path;
+            path = csvrSearchUri(current, data->request->path);
+            pthread_mutex_unlock(&lockSearchPath);
             if(path)
             {
                 (*path->callbackFunction)(data->request, data->userData);
@@ -688,9 +699,6 @@ static void *csvrProcessUserProcedureThreads(void *arg)
         FREE(data->request);
     } while (0);
 
-    /* To reduce OS process */
-    // TODO need to research this
-    // usleep(250000);
     csvrDecreaseConnectionCounter();
 
     pthread_exit(NULL);
@@ -726,24 +734,27 @@ static void *csvrAsyncronousThreads(void * arg)
     sem_init(&waitThread,0,0);
     printf("[INFO] Server is listening at port %u\n", threadsData->server->port);
 
+    pthread_mutex_t lockThreads = PTHREAD_MUTEX_INITIALIZER;
     while(1)
     {
 
+        pthread_mutex_lock(&lockThreads);
         csvrRequest_t *request = NULL;
         request = calloc(1, sizeof(csvrRequest_t));
         if(request == NULL)
         {
+            pthread_mutex_unlock(&lockThreads);
             break;
         }
 
         /* save the pointer here */
         memset(request,0,sizeof(csvrRequest_t));
-        threadsData->request = request;
         request->serverName  = strdup(threadsData->server->serverName);
         /* 1. Listen to socket */
         if (listen(threadsData->server->sockfd, totalConnectionAllowed) != 0)
         {
             printf("[INFO] Failed listen socket: %s\n", strerror(errno));
+            pthread_mutex_unlock(&lockThreads);
             FREE(request);
             break;
         }
@@ -759,6 +770,7 @@ static void *csvrAsyncronousThreads(void * arg)
         {
             printf("[ERROR] Cannot accept client\n");
             csvrReadFinish(request, NULL);
+            pthread_mutex_unlock(&lockThreads);
             FREE(request);
             break;
         }
@@ -769,15 +781,18 @@ static void *csvrAsyncronousThreads(void * arg)
 
         /* if success, do the procedure based on the path */
         pthread_t threadClient;
+        threadsData->request = request;
         int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)threadsData);
         /* If success, detach the threads */
         if(status == 0)
         {
+            pthread_mutex_unlock(&lockThreads);
             pthread_detach(threadClient);
         }
         /* If failed, send response and close the connection */
         else
         {
+            pthread_mutex_unlock(&lockThreads);
             printf("[ERROR] Cannot spawn threads\n");
 
             csvrResponse_t *response = NULL;
@@ -786,6 +801,8 @@ static void *csvrAsyncronousThreads(void * arg)
             {
                 printf("[ERROR] Failed allocating request/response memory");
                 usleep(200000);
+                csvrReadFinish(request, NULL);
+                FREE(request);
                 continue;
             }
             memset(response,0,sizeof(csvrResponse_t));
@@ -793,15 +810,15 @@ static void *csvrAsyncronousThreads(void * arg)
             if(csvrClientReader(request) == csvrSuccess)
             {
                 csvrSendResponseError(request, csvrResponseInternalServerError, "Internal Server Error");
-                printf("[DEBUG] %u: Internal Server Error\n",csvrResponseInternalServerError);
+                printf("[DEBUG] 500 Internal Server Error\n");
             }
             csvrReadFinish(request, response);
             FREE(request);
             FREE(response);
         }
-        /* By trial and error, this is to avoid bad file descriptor */
-        usleep(200000);
-        sem_wait(&waitThread);
+
+        usleep(100000);
+
     }
     threadsData->server->asyncFlag = false;
     pthread_cleanup_pop(0);
@@ -937,7 +954,19 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     int retprint  = -1;
     if(createHttpErrorResponse(&message, request, code) == csvrSuccess)
     {
-        header = "Content-Type: text/html; charset=utf-8\r\n";
+        retprint = asprintf(&header,
+            "Content-Type: text/html; charset=utf-8\r\n"
+            "Content-Length: %lu\r\n",
+            strlen(message));
+        if(retprint == -1)
+        {
+            /* Send empty reply */
+            printf("[ >>> ] Empty reply\n");
+            send(request->clientfd, "", 0, 0);
+            FREE(payload);
+            FREE(message);
+            return csvrSuccess;
+        }
     }
     
     retprint = asprintf(&payload, template, 
@@ -952,11 +981,13 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     if(retprint == -1)
     {
         /* Send empty reply */
+        printf("[ >>> ] Empty reply\n");
         send(request->clientfd, "", 0, 0);
     }
     else
     {
-        sendStatus = send(request->clientfd, message, strlen(message), 0);
+        printf("[ >>> ] 404 Not Found\n");
+        sendStatus = send(request->clientfd, payload, strlen(payload), 0);
     }
 
     if(sendStatus > 0)
