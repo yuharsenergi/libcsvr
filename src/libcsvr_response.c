@@ -35,32 +35,32 @@ csvrErrCode_e createHttpErrorResponse(char **dest, csvrRequest_t * request, csvr
     {
     case csvrResponseNotFound:
         retprint = asprintf(dest,
-            "<!DOCTYPE html>"
-            "<html lang=\"en\">"
-            "<head>"
-            "<meta charset=\"utf-8\">"
-            "<title>Error</title>"
-            "</head>"
-            "<body>"
-            "<pre>Cannot %s%s</pre>"
-            "</body>"
-            "</html>",
+            "<!DOCTYPE html>\n"
+            "\t<html lang=\"en\">\n"
+            "\t<head>\n"
+            "\t\t<meta charset=\"utf-8\">\n"
+            "\t\t<title>Error</title>\n"
+            "\t</head>\n"
+            "\t<body>\n"
+            "\t\t<pre>Cannot %s%s</pre>\n"
+            "\t</body>\n"
+            "</html>\n",
             typeStr[request->type],
             request->path
         );
         break;
     case csvrResponseInternalServerError:
         retprint = asprintf(dest,
-            "<!DOCTYPE html>"
-            "<html lang=\"en\">"
-            "<head>"
-            "<meta charset=\"utf-8\">"
-            "<title>Error</title>"
-            "</head>"
-            "<body>"
-            "<pre>Internal Server Error</pre>"
-            "</body>"
-            "</html>"
+            "<!DOCTYPE html>\n"
+            "<html lang=\"en\">\n"
+            "\t<head>\n"
+            "\t\t<meta charset=\"utf-8\">\n"
+            "\t\t<title>Error</title>\n"
+            "\t</head>\n"
+            "\t<body>\n"
+            "\t\t<pre>Internal Server Error</pre>\n"
+            "\t</body>\n"
+            "</html>\n"
         );
         break;
     default:
