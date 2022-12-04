@@ -66,6 +66,7 @@ void *handlerGetUuid(csvrRequest_t *request, void *userData)
     long total = csvrGetTotalConnection();
     csvrAddContent(&response, "{\"id\":%d,\"totalConnection\":%ld,\"uuid\":\"%s\"}",session++, total, uuid);
     FREE(uuid);
+    sleep(1);
     csvrSendResponse(request, &response);
     printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);
@@ -91,7 +92,7 @@ void *handlerTime(csvrRequest_t *request, void *userData)
     memset(time_str, 0x00, 24*sizeof(char));
     strftime(time_str, sizeof(time_str), "%y-%m-%d %H:%M:%S", d_tm);
     snprintf(time_str + strlen(time_str),sizeof(time_str), ".%lu",msec);
-
+    usleep(300000);
     csvrAddContent(&response,"{\"id\":%d,\"time\":\"%s\"}",session++,time_str);
     csvrSendResponse(request, &response);
     printf("[ >>> ] %s\n",response.body);
