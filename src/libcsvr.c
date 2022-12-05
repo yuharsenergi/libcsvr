@@ -654,9 +654,11 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     csvrThreadsData_t *data = (csvrThreadsData_t*)arg;
     if(data == NULL)
     {
+        sem_post(&waitThread);
         printf("[INFO] Invalid data during user procedure\n");
         pthread_exit(NULL);
     }
+
     if(data->server == NULL || data->request == NULL)
     {
         if(data->server == NULL) printf("[INFO] Invalid data->server during user procedure\n");
@@ -673,7 +675,6 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     {
         if(csvrClientReader(data->request) == csvrSuccess)
         {
-            printf("[%s] %s\n",typeStringTranslator[data->request->type], data->request->path);
             struct csvrPathUrl_t * path = NULL;
             struct csvrPathUrl_t * current = NULL;
             pthread_mutex_lock(&lockSearchPath);
@@ -682,18 +683,20 @@ static void *csvrProcessUserProcedureThreads(void *arg)
             pthread_mutex_unlock(&lockSearchPath);
             if(path)
             {
+                printf("[%s] %s\n",typeStringTranslator[data->request->type], data->request->path);
                 (*path->callbackFunction)(data->request, data->userData);
             }
             /* If path not found */
             else
             {
-                printf("\n[INFO] Path [%s] is not registered\n",data->request->path);
+                printf("[%s] %s 404 Not Found\n",typeStringTranslator[data->request->type], data->request->path);
                 csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
+                csvrReadFinish(data->request, NULL);
             }
         }
         else
         {
-            printf("\n[INFO][ <<< ] Cannot read client socked: %s\n", strerror(errno));
+            printf("\n[ERROR][ <<< ] Cannot read client socked: %s\n", strerror(errno));
             csvrReadFinish(data->request, NULL);
         }
         FREE(data->request);
@@ -817,7 +820,11 @@ static void *csvrAsyncronousThreads(void * arg)
             FREE(response);
         }
 
-        usleep(100000);
+        // TODO check this.
+        /** why the threads still not able to get the threadsData pointer inside csvrProcessUserProcedureThreads threads
+         *  if this sleep not exists.
+         */
+        usleep(200000);
 
     }
     threadsData->server->asyncFlag = false;
@@ -825,13 +832,13 @@ static void *csvrAsyncronousThreads(void * arg)
     pthread_exit(NULL);
 }
 
-/**
+/************************************************************************************************************
  * @brief If this function is called, it will spawn threads to handle incoming request
  * 
  * @param[in] server 
  * @param[in] output 
  * @return csvrErrCode_e 
- */
+ *************************************************************************************************************/
 csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
 {
     if(server == NULL)
@@ -859,13 +866,13 @@ csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
     return csvrSuccess;
 }
 
-/**
- * @brief 
+/************************************************************************************************************
+ * @brief Function to send response
  * 
- * @param[in] request 
- * @param[in] response 
+ * @param[in] request Pointer to request structure, must not NULL.
+ * @param[in] response Pointer to response structure, must not NULL.
  * @return csvrErrCode_e 
- */
+ *************************************************************************************************************/
 csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response)
 {
     if(request == NULL || response == NULL)
@@ -924,6 +931,14 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
     return ret;
 }
 
+/************************************************************************************************************
+ * @brief Function to send HTTP error
+ * 
+ * @param[in] request 
+ * @param[in] code 
+ * @param[in] desc 
+ * @return csvrErrCode_e 
+ *************************************************************************************************************/
 csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCode_e code, char*desc)
 {
     if(request == NULL || desc == NULL)
@@ -986,7 +1001,6 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     }
     else
     {
-        printf("[ >>> ] 404 Not Found\n");
         sendStatus = send(request->clientfd, payload, strlen(payload), 0);
     }
 
