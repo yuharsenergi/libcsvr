@@ -35,9 +35,13 @@
 #define FREE(ptr) if(ptr != NULL) {free(ptr);ptr = NULL;}
 #endif
 
-static int totalConnectionAllowed = 5;
+static long totalConnectionNow = 0;
+static int totalConnectionAllowed = 100;
 static pthread_t serverThreads;
+sem_t waitThread;
 pthread_mutex_t lockRead = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lockCount = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lockSearchPath = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct
 {
@@ -54,6 +58,7 @@ size_t lengthTypeTranslator[csvrTypeMax] =
     [csvrTypePost     ] = 4,
     [csvrTypeHead     ] = 4,
     [csvrTypeDelete   ] = 6,
+    [csvrTypeUnknwon  ] = 0,
 };
 
 char *typeStringTranslator[] = 
@@ -61,14 +66,29 @@ char *typeStringTranslator[] =
     [csvrTypeNotKnown ] = "",
     [csvrTypeGet      ] = "GET ",
     [csvrTypePut      ] = "PUT ",
-    [csvrTypePost     ] = "POST ",
-    [csvrTypeHead     ] = "HEAD ",
-    [csvrTypeDelete   ] = "DELETE ",
+    [csvrTypePost     ] = "POST",
+    [csvrTypeHead     ] = "HEAD",
+    [csvrTypeDelete   ] = "DELETE",
+    [csvrTypeUnknwon  ] = "",
 };
+
+static void csvrIncreaseConnectionCounter()
+{
+    pthread_mutex_lock(&lockCount);
+    totalConnectionNow++;
+    pthread_mutex_unlock(&lockCount);
+}
+
+static void csvrDecreaseConnectionCounter()
+{
+    pthread_mutex_lock(&lockCount);
+    totalConnectionNow--;
+    pthread_mutex_unlock(&lockCount);
+}
 
 static csvrRequestType_e getRequestType(char*header)
 {
-    csvrRequestType_e type = csvrTypeNotKnown;
+    csvrRequestType_e type = csvrTypeUnknwon;
     if(!memcmp("POST", header, 4))
     {
         type = csvrTypePost;
@@ -96,7 +116,7 @@ static int getContentLength(char*header, size_t headerLen)
 {
     if(header == NULL)
     {
-        return csvrInvalidInput;
+        return 0;
     }
 
     int contentLength = 0;
@@ -139,7 +159,7 @@ static csvrContentType_e getContentType(char*header)
         return noContentType;
     }
 
-    csvrContentType_e contentType = textHtml;
+    csvrContentType_e contentType = noContentType;
     char *line = NULL;
     char buffer[100];
     size_t index = 0;
@@ -170,6 +190,10 @@ static csvrContentType_e getContentType(char*header)
                     if(!memcmp(buffer, "application/json", strlen("application/json")))
                     {
                         contentType = applicationJson;
+                    }
+                    else if(!memcmp(buffer, "text/html", strlen("text/html")))
+                    {
+                        contentType = textHtml;
                     }
                     break;
                 }
@@ -425,7 +449,7 @@ static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
 {
     if(output == NULL)
     {
-        printf("[INFO][%s] Invalid input\n",__func__);
+        printf("[INFO] Invalid server object input\n");
         return csvrInvalidInput;
     }
 
@@ -442,10 +466,41 @@ static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
     output->content = NULL;
     output->message = NULL;
     message = malloc(DEFAULT_MESSAGE_ALLOCATION*sizeof(char));
+    if(message == NULL)
+    {
+        printf("[INFO] Cannot allocate message memory\n");
+        return csvrSystemFailure;
+    }
     memset(message, 0, DEFAULT_MESSAGE_ALLOCATION);
+
+    /* Set timeout */
+    fd_set fdset;
+    struct timeval tv;FD_ZERO(&fdset);
+    FD_SET(output->clientfd, &fdset);
+    tv.tv_sec = 10;             /* 10 second timeout */
+    tv.tv_usec = 0;
 
     while(1)
     {
+        if (select(output->clientfd + 1, NULL, &fdset, NULL, &tv) == 1)
+        {
+            int so_error;
+            socklen_t len = sizeof so_error;
+
+            getsockopt(output->clientfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+
+            if (so_error != 0)
+            {
+                printf("[ERROR] Cannot read socket ");GET_ERRNO();
+                break;
+            }
+        }
+        else
+        {
+            printf("[DEBUG] Client %s connection timeout: ",output->clientAddress);GET_ERRNO();
+            break;
+        }
+        
         /*3.  Read the client socket until EOF, or 0 */
         retval = read(output->clientfd, &character, 1);
         if(retval == 0) break;
@@ -484,7 +539,11 @@ static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
                     indexBody               = lenMessage;
                     output->contentType     = getContentType(output->header);
                     contentLength           = getContentLength(output->header, lenMessage);
-                    output->contentLength   = getContentLength(output->header, lenMessage);
+                    output->contentLength   = contentLength;
+                    if(output->contentLength == 0)
+                    {
+                        break;
+                    }
                 }
                 continue;
             }
@@ -505,6 +564,13 @@ static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
                 }
             }
         }
+    }
+
+    /* If no content-length in POST request header, do this */
+    if(output->contentLength == 0 && flagReadBody == true)
+    {
+        FREE(message);
+        return csvrNoContentLength;
     }
 
     if(retval <= 0)
@@ -576,7 +642,16 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
     return ret;
 }
 
-struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path)
+/************************************************************************************************************
+ * @brief Function to register URI to server.
+ * 
+ * @param[in] input Input path linked list.
+ * @param[in] path The requested url path.
+ * @param[in] type Request type defined in csvrRequestType_e enumeration.
+ * @return This function will return NULL if no URI of requested path not registered. Otherwise, it will return
+ *         current pointer of the path linked list.
+ *************************************************************************************************************/
+struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path, csvrRequestType_e type)
 {
     struct csvrPathUrl_t * current = NULL;
     struct csvrPathUrl_t * head = NULL;
@@ -586,7 +661,7 @@ struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path)
         current = input;
         while(current)
         {
-            if(strlen(current->name) == strlen(path))
+            if((strlen(current->name) == strlen(path)) && (current->type == type))
             {
                 if(!memcmp(current->name, path, strlen(path)))
                 {
@@ -600,85 +675,89 @@ struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path)
     return current;
 }
 
-#if 0
 static void *csvrProcessUserProcedureThreads(void *arg)
 {
     csvrThreadsData_t *data = (csvrThreadsData_t*)arg;
-    if(data == NULL || data->request == NULL || data->server == NULL) pthread_exit(NULL);
-
-    struct csvrPathUrl_t * path = NULL;
-    path = csvrSearchUri(data->server->path, data->request->path);
-    if(path)
+    if(data == NULL)
     {
-        printf("[INFO] Path [%s] registered\n",data->request->path);
-        (*path->callbackFunction)(data->request, data->userData);
-    }
-    /* If path not found */
-    else
-    {
-        printf("[INFO] Path [%s] is not registered\n",data->request->path);
-        csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
-    }
-    csvrReadFinish(data->request, NULL);
-    FREE(data->request);
-    pthread_exit(NULL);
-}
-#else
-static void *csvrProcessUserProcedureThreads(void *arg)
-{
-    csvrThreadsData_t *data = (csvrThreadsData_t*)arg;
-    if(data == NULL || data->server == NULL || data->request == NULL)
-    {
-        printf("[INFO] Invalid input during user procedure\n");
-        csvrReadFinish(data->request, NULL);
+        sem_post(&waitThread);
+        printf("[INFO] Invalid data during user procedure\n");
         pthread_exit(NULL);
     }
 
+    if(data->server == NULL || data->request == NULL)
+    {
+        if(data->server == NULL) printf("[INFO] Invalid data->server during user procedure\n");
+        if(data->request == NULL) printf("[INFO] Invalid data->request during user procedure\n");
+        csvrReadFinish(data->request, NULL);
+        sem_post(&waitThread);
+        pthread_exit(NULL);
+    }
+
+    sem_post(&waitThread);
+    csvrIncreaseConnectionCounter();
+
     do
     {
-        if(csvrClientReader(data->request) == csvrSuccess)
+        csvrErrCode_e readStatus = 0;
+        readStatus = csvrClientReader(data->request);
+        if(readStatus == csvrSuccess)
         {
-            printf("[%s] %s\n",typeStringTranslator[data->request->type], data->request->path);
             struct csvrPathUrl_t * path = NULL;
-            path = csvrSearchUri(data->server->path, data->request->path);
+            struct csvrPathUrl_t * current = NULL;
+            pthread_mutex_lock(&lockSearchPath);
+            current = data->server->path;
+            path = csvrSearchUri(current, data->request->path, data->request->type);
+            pthread_mutex_unlock(&lockSearchPath);
             if(path)
             {
+                printf("[%s %s] %s\n",typeStringTranslator[data->request->type], data->request->clientAddress, data->request->path);
                 (*path->callbackFunction)(data->request, data->userData);
             }
             /* If path not found */
             else
             {
-                printf("\n[INFO] Path [%s] is not registered\n",data->request->path);
                 csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
+                csvrReadFinish(data->request, NULL);
             }
+        }
+        else if(readStatus == csvrFailedReadSocket)
+        {
+            printf("\n[ERROR][ <<< ] Cannot read client socked: %s\n", strerror(errno));
+            csvrReadFinish(data->request, NULL);
+        }
+        else if(readStatus == csvrNoContentLength)
+        {
+            csvrSendResponseError(data->request, csvrResponseLengthRequired, "Length Required");
+            csvrReadFinish(data->request, NULL);
         }
         else
         {
-            printf("\n[INFO][ <<< ] Cannot read client socked: %s\n", strerror(errno));
+            csvrSendResponseError(data->request, csvrResponseInternalServerError, "Internal Server Error");
             csvrReadFinish(data->request, NULL);
         }
         FREE(data->request);
     } while (0);
 
-    /* To reduce OS process */
-    usleep(250000);
+    csvrDecreaseConnectionCounter();
 
     pthread_exit(NULL);
 }
-#endif
 
 void csvrAsyncronousThreadsCleanUp(void *arg)
 {
     csvrThreadsData_t *data = (csvrThreadsData_t *)arg;
     if(data)
-    {            
-        csvrReadFinish(data->request, NULL);
-        FREE(data->request);
+    {
+        if(data->request)
+        {
+            csvrReadFinish(data->request, NULL);
+            FREE(data->request);
+        }
         FREE(data);
     }
 }
 
-#if 0
 static void *csvrAsyncronousThreads(void * arg)
 {
     csvrThreadsData_t *threadsData = (csvrThreadsData_t *)arg;
@@ -692,113 +771,33 @@ static void *csvrAsyncronousThreads(void * arg)
         pthread_exit(NULL);
     }
 
+    sem_init(&waitThread,0,0);
     printf("[INFO] Server is listening at port %u\n", threadsData->server->port);
+
+    pthread_mutex_t lockThreads = PTHREAD_MUTEX_INITIALIZER;
     while(1)
     {
-        csvrRequest_t * request = NULL;
-        request = calloc(1, sizeof(csvrRequest_t));
-        if(request == NULL)
-        {
-            break;
-        }
 
-        memset(request,0,sizeof(csvrRequest_t));
-        threadsData->request = request;
-        request->serverName = strdup(threadsData->server->serverName);
-
-        /* 1. Listen to socket */
-        if (listen(threadsData->server->sockfd, totalConnectionAllowed) != 0)
-        {
-            printf("[INFO] Failed listen socket: %s\n", strerror(errno));
-            break;
-        }
-
-        struct sockaddr_in client;  
-        memset(&client,0,sizeof(struct sockaddr_in));
-
-        /* 2. Get the socket configuration to get the client address */
-        socklen_t peerAddrSize = sizeof(client);
-        request->clientfd = -1;
-        request->clientfd = accept(threadsData->server->sockfd, (struct sockaddr*)&client, &peerAddrSize);
-        if (request->clientfd < 0)
-        {
-            printf("[INFO] Cannot accept client\n");
-            csvrReadFinish(request, NULL);
-            FREE(request);
-            continue;
-        }
-
-        struct in_addr ipAddr = client.sin_addr;
-        memset(request->clientAddress,0,sizeof(request->clientAddress));
-        inet_ntop(AF_INET, &ipAddr, request->clientAddress, INET_ADDRSTRLEN );
-
-        pthread_t threadClient;
-        /* if success, do the procedure based on the path */
-        printf("[INFO][ <<< ] Accept %s\n",request->clientAddress);
-        if(csvrClientReader(request) == csvrSuccess)
-        {
-            printf("[INFO][ <<< ][%s] %s\n",typeStringTranslator[request->type], request->path);
-            int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)threadsData);
-            /* If success, detach the threads */
-            if(status == 0)
-            {
-                pthread_detach(threadClient);
-            }
-            /* If failed, send response and close the connection */
-            else
-            {
-                printf("[INFO] Cannot spawn threads\n");
-                csvrSendResponseError(request, csvrResponseInternalServerError, "Internal Server Error");
-                csvrReadFinish(request, NULL);
-                FREE(request);
-            }
-        }
-        else
-        {
-            printf("[INFO][ <<< ] Cannot read client socked: %s\n", strerror(errno));
-            csvrReadFinish(request, NULL);
-            FREE(request);
-        }
-    }
-    threadsData->server->asyncFlag = false;
-    pthread_cleanup_pop(0);
-    pthread_exit(NULL);
-}
-#else
-static void *csvrAsyncronousThreads(void * arg)
-{
-    csvrThreadsData_t *threadsData = (csvrThreadsData_t *)arg;
-    if(threadsData == NULL || threadsData->server == NULL) pthread_exit(NULL);
-
-    threadsData->server->asyncFlag = true;
-
-    pthread_cleanup_push(csvrAsyncronousThreadsCleanUp, (void*)threadsData);
-    if(pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL) != 0)
-    {
-        pthread_exit(NULL);
-    }
-
-    printf("[INFO] Server is listening at port %u\n", threadsData->server->port);
-    while(1)
-    {
-        /* 1. Listen to socket */
-        if (listen(threadsData->server->sockfd, totalConnectionAllowed) != 0)
-        {
-            printf("[INFO] Failed listen socket: %s\n", strerror(errno));
-            break;
-        }
-
+        pthread_mutex_lock(&lockThreads);
         csvrRequest_t *request = NULL;
         request = calloc(1, sizeof(csvrRequest_t));
         if(request == NULL)
         {
+            pthread_mutex_unlock(&lockThreads);
             break;
         }
 
         /* save the pointer here */
         memset(request,0,sizeof(csvrRequest_t));
-        threadsData->request = request;
         request->serverName  = strdup(threadsData->server->serverName);
+        /* 1. Listen to socket */
+        if (listen(threadsData->server->sockfd, totalConnectionAllowed) != 0)
+        {
+            printf("[INFO] Failed listen socket: %s\n", strerror(errno));
+            pthread_mutex_unlock(&lockThreads);
+            FREE(request);
+            break;
+        }
 
         struct sockaddr_in client;  
         memset(&client,0,sizeof(struct sockaddr_in));
@@ -811,6 +810,7 @@ static void *csvrAsyncronousThreads(void * arg)
         {
             printf("[ERROR] Cannot accept client\n");
             csvrReadFinish(request, NULL);
+            pthread_mutex_unlock(&lockThreads);
             FREE(request);
             break;
         }
@@ -821,52 +821,47 @@ static void *csvrAsyncronousThreads(void * arg)
 
         /* if success, do the procedure based on the path */
         pthread_t threadClient;
+        threadsData->request = request;
         int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)threadsData);
         /* If success, detach the threads */
         if(status == 0)
         {
+            pthread_mutex_unlock(&lockThreads);
             pthread_detach(threadClient);
         }
         /* If failed, send response and close the connection */
         else
         {
-            printf("[ERROR] Cannot spawn threads\n");
-
-            csvrResponse_t *response = NULL;
-            response = calloc(1, sizeof(csvrResponse_t));
-            if(response == NULL)
-            {
-                printf("[ERROR] Failed allocating request/response memory");
-                usleep(200000);
-                continue;
-            }
-            memset(response,0,sizeof(csvrResponse_t));
-
+            pthread_mutex_unlock(&lockThreads);
+            printf("[ERROR] Failed spawn client worker threads\n");
             if(csvrClientReader(request) == csvrSuccess)
             {
-                csvrSendResponseError(request, csvrResponseInternalServerError, "Internal Server Error");
-                printf("[DEBUG] %u: Internal Server Error\n",csvrResponseInternalServerError);
+                //TODO : Check this section more. For now, we don't care about the content.
             }
-            csvrReadFinish(request, response);
+            csvrSendResponseError(request, csvrResponseInternalServerError, "Internal Server Error");
+            csvrReadFinish(request, NULL);
             FREE(request);
-            FREE(response);
         }
-        /* By trial and error, this is to avoid bad file descriptor */
-        usleep(100000);
+
+        // TODO check this.
+        /** why the threads still not able to get the threadsData pointer inside csvrProcessUserProcedureThreads threads
+         *  if this sleep not exists.
+         */
+        usleep(200000);
+
     }
     threadsData->server->asyncFlag = false;
     pthread_cleanup_pop(0);
     pthread_exit(NULL);
 }
-#endif
 
-/**
+/************************************************************************************************************
  * @brief If this function is called, it will spawn threads to handle incoming request
  * 
  * @param[in] server 
  * @param[in] output 
  * @return csvrErrCode_e 
- */
+ *************************************************************************************************************/
 csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
 {
     if(server == NULL)
@@ -894,13 +889,13 @@ csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
     return csvrSuccess;
 }
 
-/**
- * @brief 
+/************************************************************************************************************
+ * @brief Function to send response
  * 
- * @param[in] request 
- * @param[in] response 
+ * @param[in] request Pointer to request structure, must not NULL.
+ * @param[in] response Pointer to response structure, must not NULL.
  * @return csvrErrCode_e 
- */
+ *************************************************************************************************************/
 csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response)
 {
     if(request == NULL || response == NULL)
@@ -959,6 +954,14 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
     return ret;
 }
 
+/************************************************************************************************************
+ * @brief Function to send HTTP error
+ * 
+ * @param[in] request 
+ * @param[in] code 
+ * @param[in] desc 
+ * @return csvrErrCode_e 
+ *************************************************************************************************************/
 csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCode_e code, char*desc)
 {
     if(request == NULL || desc == NULL)
@@ -989,7 +992,19 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     int retprint  = -1;
     if(createHttpErrorResponse(&message, request, code) == csvrSuccess)
     {
-        header = "Content-Type: text/html; charset=utf-8\r\n";
+        retprint = asprintf(&header,
+            "Content-Type: text/html; charset=utf-8\r\n"
+            "Content-Length: %lu\r\n",
+            strlen(message));
+        if(retprint == -1)
+        {
+            /* Send empty reply */
+            printf("[%s %s] %s Empty reply - Failed allocate memory\n",typeStringTranslator[request->type], request->clientAddress, request->path);
+            send(request->clientfd, "", 0, 0);
+            FREE(payload);
+            FREE(message);
+            return csvrSuccess;
+        }
     }
     
     retprint = asprintf(&payload, template, 
@@ -1004,11 +1019,13 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     if(retprint == -1)
     {
         /* Send empty reply */
+        printf("[%s %s] %s Empty reply - Failed allocate memory\n",typeStringTranslator[request->type], request->clientAddress, request->path);
         send(request->clientfd, "", 0, 0);
     }
     else
     {
-        sendStatus = send(request->clientfd, message, strlen(message), 0);
+        printf("[%s %s] %s %i %s\n",typeStringTranslator[request->type], request->clientAddress, request->path, code, desc);
+        sendStatus = send(request->clientfd, payload, strlen(payload), 0);
     }
 
     if(sendStatus > 0)
@@ -1133,10 +1150,7 @@ csvrErrCode_e csvrShutdown(csvrServer_t *server)
         }
 
         printf("[INFO] Cleaning URI finished\n");
-
-        // server->path = NULL;
     }
-
 
     free(server);
     printf("[INFO] Shutdown procedure finished\n");
@@ -1151,6 +1165,14 @@ csvrErrCode_e csvrJoin(csvrServer_t *server)
         return csvrSuccess;
     }
     return csvrNotAnError;
+}
+
+long csvrGetTotalConnection()
+{
+    pthread_mutex_lock(&lockCount);
+    long total = totalConnectionNow;
+    pthread_mutex_unlock(&lockCount);
+    return total;
 }
 
 /**
@@ -1199,9 +1221,6 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
             FREE(buffer);
             return csvrSystemFailure;
         }
-        // newHeader[i] = calloc(strlen(input->header.data[i]) + 1, sizeof(char));
-        // memset(newHeader[i], 0, strlen(input->header.data[i]) + 1);
-        // snprintf(newHeader[i],  strlen(input->header.data[i]) + 1, 
         FREE(input->header.data[i]);
     }
     retprint = asprintf(&(newHeader[input->header.total - 1]), "%s", buffer);
@@ -1210,9 +1229,6 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
         FREE(buffer);
         return csvrSystemFailure;
     }
-    // newHeader[input->header.total - 1] = calloc(strlen(buffer) + 1, sizeof(char));
-    // memset(newHeader[input->header.total - 1], 0, strlen(buffer) + 1);
-    // snprintf(newHeader[input->header.total - 1], strlen(buffer), "%s", buffer);
     FREE(buffer);
 
     FREE(input->header.data)
@@ -1314,9 +1330,6 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
         FREE(bodyTemp);
         return csvrSystemFailure;
     }
-    // input->body = calloc(strlen(bodyTemp) + 1, sizeof(char));
-    // memset(input->body, 0, strlen(bodyTemp) + 1);
-    // snprintf(input->body, strlen(bodyTemp) + 1, "%s", bodyTemp);
     FREE(bodyTemp);
     return csvrSuccess;
 }
@@ -1393,17 +1406,17 @@ int main()
     request = calloc(1, sizeof(csvrRequest_t));
     memset(request, 0, sizeof(csvrRequest_t));
     strcpy(request->path,"/time");
-    link = csvrSearchUri(server->path, "/time");
+    link = csvrSearchUri(server->path, "/time", csvrTypeGet);
     (*link->callbackFunction)(request, &response);
     
     memset(request, 0, sizeof(csvrRequest_t));
     strcpy(request->path,"/roamer");
-    link = csvrSearchUri(server->path, "/roamer");
+    link = csvrSearchUri(server->path, "/roamer", csvrTypePost);
     (*link->callbackFunction)(request, &response);
 
     memset(request, 0, sizeof(csvrRequest_t));
     strcpy(request->path,"/");
-    link = csvrSearchUri(server->path, "/");
+    link = csvrSearchUri(server->path, "/", csvrTypePost);
     (*link->callbackFunction)(request, &response);
     FREE(request);
     csvrShutdown(server);

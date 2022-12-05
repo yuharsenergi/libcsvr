@@ -21,10 +21,12 @@
 #define PORT 9000
 
 static sem_t semKill;
+static csvrServer_t * server = NULL;
 
 static void signalCallback()
 {
     sem_post(&semKill);
+    if(server) sem_post(&(server->killFlag));
 }
 
 int main(int arg,char**argv)
@@ -49,7 +51,6 @@ int main(int arg,char**argv)
     sigtermHandler.sa_flags = SA_SIGINFO;
     sigaction(SIGTERM, &sigtermHandler, NULL);
 
-    csvrServer_t * server = NULL;
     server = csvrInit(PORT);
     if(server == NULL)
     {
@@ -75,13 +76,7 @@ int main(int arg,char**argv)
         return -1;
     }
 
-    while(1)
-    {
-        if (!sem_wait(&semKill))
-        {
-            break;
-        }
-    }
+    csvrJoin(server);
 
     csvrShutdown(server);
 
