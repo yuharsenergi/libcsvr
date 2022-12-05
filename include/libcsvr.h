@@ -35,6 +35,7 @@ typedef enum
     csvrInvalidInput,
     csvrInvalidBody,
     csvrInvalidHeader,
+    csvrNoContentLength,
     csvrErrMax
 }csvrErrCode_e;
 
@@ -55,6 +56,7 @@ typedef enum{
     csvrTypePost      = 3,
     csvrTypeHead      = 4,
     csvrTypeDelete    = 5,
+    csvrTypeUnknwon   = 6,
     csvrTypeMax
 }csvrRequestType_e;
 
@@ -86,7 +88,15 @@ typedef enum{
     /* Redirection response */
     
     /* Client Error response */
+    csvrResponseBadRequest          = 400,
+    csvrResponseUnauthorized        = 401,
+    csvrResponsePaymentRequired     = 402,
+    csvrResponseForbidden           = 403,
     csvrResponseNotFound            = 404,
+    csvrResponseMethodNotAllowed    = 405,
+    csvrResponseNotAcceptable       = 406,
+    csvrResponseRequestTimeout      = 408,
+    csvrResponseLengthRequired      = 411,
 
     /* Server Error response */
     csvrResponseInternalServerError = 500,
