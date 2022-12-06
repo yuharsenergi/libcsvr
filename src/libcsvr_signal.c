@@ -19,11 +19,43 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ********************************************************************************/
-#ifndef LIBCSVR_RESPONSE_H
-#define LIBCSVR_RESPONSE_H
+#include <string.h>
+#include <signal.h>
+#include <semaphore.h>
 
-#include "libcsvr.h"
+sem_t csvrSemaphore;
 
-csvrErrCode_e createHttpErrorResponse(char **dest, csvrRequest_t * request, csvrHttpResponseCode_e code);
+static void csvrSignalCallback()
+{
+    sem_post(&csvrSemaphore);
+}
 
-#endif
+int csvrInitSignal()
+{
+    struct sigaction sigintHandler;
+    struct sigaction sigtermHandler;
+
+    /* Signal handler for SIGINT */
+    memset(&sigintHandler, 0, sizeof(sigintHandler));
+    sigintHandler.sa_sigaction = &csvrSignalCallback;
+    sigintHandler.sa_flags = SA_SIGINFO;
+    sigaction(SIGINT, &sigintHandler, NULL);
+
+    /* Signal handler for SIGTERM */
+    memset(&sigtermHandler, 0, sizeof(sigtermHandler));
+    sigtermHandler.sa_sigaction = &csvrSignalCallback;
+    sigtermHandler.sa_flags = SA_SIGINFO;
+    sigaction(SIGTERM, &sigtermHandler, NULL);
+
+    return sem_init(&csvrSemaphore, 0, 0);
+}
+
+int csvrWaitSignal()
+{
+    return sem_wait(&csvrSemaphore);
+}
+
+int csvrDestroySignal()
+{
+    return sem_destroy(&csvrSemaphore);
+}

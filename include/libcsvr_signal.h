@@ -19,11 +19,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ********************************************************************************/
-#ifndef LIBCSVR_RESPONSE_H
-#define LIBCSVR_RESPONSE_H
+#ifndef LIBCSVR_SIGNAL_H
+#define LIBCSVR_SIGNAL_H
 
-#include "libcsvr.h"
-
-csvrErrCode_e createHttpErrorResponse(char **dest, csvrRequest_t * request, csvrHttpResponseCode_e code);
+int csvrInitSignal();
+int csvrWaitSignal();
+int csvrDestroySignal();
 
 #endif
