@@ -3,7 +3,7 @@
 ## Developer's Note
 
 Hi ! Thank you for visiting.  
-I havent't added any release yet cause I am currently working in this project by now.  
+I haven't added any release yet cause I am currently working in this project by now.  
 But feel free to learn, and test this library.  
 
 ## Compilation Guide
