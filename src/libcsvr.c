@@ -1033,7 +1033,7 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     char *payload = NULL;
     char *header  = NULL;
     int retprint  = -1;
-    if(createHttpErrorResponse(&message, request, code) == csvrSuccess)
+    if(csvrCreateHttpErrorResponse(&message, request, code) == csvrSuccess)
     {
         retprint = asprintf(&header,
             "Content-Type: text/html; charset=utf-8\r\n"

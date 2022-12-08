@@ -44,6 +44,6 @@
  *          csvrSystemFailure,
  *          csvrSuccess
  ***************************************************************************************************************/
-csvrErrCode_e createHttpErrorResponse(char **dest, csvrRequest_t * request, csvrHttpResponseCode_e code);
+csvrErrCode_e csvrCreateHttpErrorResponse(char **dest, csvrRequest_t * request, csvrHttpResponseCode_e code);
 
 #endif
