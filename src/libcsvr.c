@@ -1,23 +1,29 @@
 /********************************************************************************
-Copyright (c) 2022 Yuharsen Ergi
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+ * @file libcsvr.c
+ * @author Ergi (yuharsenergi@gmail.com)
+ * @brief Collection functions of all the csvr main runtime functions
+ * @version 0.1
+ * @date 2022-11-27
+ * 
+ * @copyright Copyright (c) 2022 Yuharsen Ergi
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * 
 ********************************************************************************/
 #include <ctype.h>
 #include <errno.h>
@@ -60,10 +66,10 @@ SOFTWARE.
 static long totalConnectionNow = 0;
 static int totalConnectionAllowed = 100;
 static pthread_t serverThreads;
-sem_t waitThread;
-pthread_mutex_t lockRead = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t lockCount = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t lockSearchPath = PTHREAD_MUTEX_INITIALIZER;
+static sem_t waitThread;
+static pthread_mutex_t lockRead = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t lockCount = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t lockSearchPath = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct
 {
@@ -72,7 +78,7 @@ typedef struct
     csvrRequest_t *request;
 }csvrThreadsData_t;
 
-size_t lengthTypeTranslator[csvrTypeMax] = 
+static size_t lengthTypeTranslator[csvrTypeMax] = 
 {
     [csvrTypeNotKnown ] = 0,
     [csvrTypeGet      ] = 3,
@@ -83,7 +89,7 @@ size_t lengthTypeTranslator[csvrTypeMax] =
     [csvrTypeUnknwon  ] = 0,
 };
 
-char *typeStringTranslator[] = 
+static char *typeStringTranslator[] = 
 {
     [csvrTypeNotKnown ] = "",
     [csvrTypeGet      ] = "GET ",
@@ -423,14 +429,14 @@ csvrServer_t *csvrInit(uint16_t port)
     return server;
 }
 
-/**
+/***************************************************************************************************************
  * @brief 
  * 
  * @param[in,out] input 
  * @param[in] serverName 
  * 
  * @return csvrErrCode_e 
- */
+ ***************************************************************************************************************/
 csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...)
 {
     if(input == NULL || serverName == NULL)
@@ -467,6 +473,16 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...
     return csvrSuccess;
 }
 
+/***************************************************************************************************************
+ * @brief Functions to read all the data from the client socket.
+ * 
+ * @param[in, out] output 
+ * @return This function return following value : 
+ *          csvrInvalidInput,
+ *          csvrCannotListenSocket,
+ *          csvrCannotAcceptSocket,
+ *          csvrSuccess
+ ***************************************************************************************************************/
 static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
 {
     if(output == NULL)
@@ -613,11 +629,15 @@ static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
 }
 
 /**
- * @brief 
+ * @brief Functions to read all the incoming data from newly created client socket from the listening procedure.
  * 
  * @param[in] input 
  * @param[out] output 
- * @return csvrErrCode_e 
+ * @return This function return following value : 
+ *          csvrInvalidInput,
+ *          csvrCannotListenSocket,
+ *          csvrCannotAcceptSocket,
+ *          csvrSuccess
  */
 csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
 {
@@ -1118,6 +1138,14 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *response)
     return csvrSuccess;
 }
 
+/************************************************************************************************************
+ * @brief Function to close the main socket that has been opened by csvrInit,
+ *        releasing all the allocated memory in the csvrServer_t pointer variable, and
+ *        releasing the csvrPathUrl_t linked list object pointer.
+ * 
+ * @param[in,out] server 
+ * @return This function always return csvrSuccess 
+ *************************************************************************************************************/
 csvrErrCode_e csvrShutdown(csvrServer_t *server)
 {
     if(server == NULL)
@@ -1183,6 +1211,14 @@ csvrErrCode_e csvrShutdown(csvrServer_t *server)
     return csvrSuccess;
 }
 
+/************************************************************************************************************
+ * @brief This function will wait for any termination signal which has been initialized by csvrInitSignal.
+ * 
+ * @param server 
+ * @return This function return following values:
+ *          csvrSuccess,
+ *          csvrNotAnError
+ *************************************************************************************************************/
 csvrErrCode_e csvrJoin(csvrServer_t *server)
 {
     if(!csvrWaitSignal())
@@ -1192,6 +1228,12 @@ csvrErrCode_e csvrJoin(csvrServer_t *server)
     return csvrNotAnError;
 }
 
+/************************************************************************************************************
+ * @brief Function to get current total client connection socket which is saved in the totalConnectionNow variable.
+ *        The value will be reset if the application is restarted.
+ * 
+ * @return This function will return the total of current socket client connections.
+ *************************************************************************************************************/
 long csvrGetTotalConnection()
 {
     pthread_mutex_lock(&lockCount);
@@ -1200,20 +1242,19 @@ long csvrGetTotalConnection()
     return total;
 }
 
-/**
- * @brief Function to create custom he    if(isRunning) pthread_cancel(thrServer);
-ader response
+/************************************************************************************************************
+ * @brief Function to create custom header response.
  * 
- * @param[in,out] input
- * @param[in] key
- * @param[in] value
+ * @param[in,out] input pointer to csvrResponse_t variable.
+ * @param[in] key the header key. Example : "Accept",  "Content-Type", "your-own-header",etc.
+ * @param[in] value the value of the header key. Example : "application/json", "text/html", "Your own header key" etc.
  * 
  * @return This function will return following value : 
  *      csvrInvalidInput
  *      csvrNotAnError
  *      csvrSystemFailure
  *      csvrSuccess
- */
+ *************************************************************************************************************/
 csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
 {
     if(input == NULL || key == NULL || value == NULL)
