@@ -33,7 +33,7 @@
  * @brief The csvr semaphore signal variable.
  * 
  */
-static sem_t csvrSemaphore;
+static sem_t _csvrSemaphore;
 
 /**
  * @brief This is callback function when the libcsvr is run using asyncronous method by calling csvrServerStart
@@ -41,7 +41,7 @@ static sem_t csvrSemaphore;
  */
 static void csvrSignalCallback()
 {
-    sem_post(&csvrSemaphore);
+    sem_post(&_csvrSemaphore);
 }
 
 /**
@@ -66,7 +66,7 @@ int csvrInitSignal()
     sigtermHandler.sa_flags = SA_SIGINFO;
     sigaction(SIGTERM, &sigtermHandler, NULL);
 
-    return sem_init(&csvrSemaphore, 0, 0);
+    return sem_init(&_csvrSemaphore, 0, 0);
 }
 
 /**
@@ -76,7 +76,7 @@ int csvrInitSignal()
  */
 int csvrWaitSignal()
 {
-    return sem_wait(&csvrSemaphore);
+    return sem_wait(&_csvrSemaphore);
 }
 
 /**
@@ -86,5 +86,5 @@ int csvrWaitSignal()
  */
 int csvrDestroySignal()
 {
-    return sem_destroy(&csvrSemaphore);
+    return sem_destroy(&_csvrSemaphore);
 }

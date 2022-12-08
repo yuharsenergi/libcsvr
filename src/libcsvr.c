@@ -63,13 +63,13 @@
 #define FREE(ptr) if(ptr != NULL) {free(ptr);ptr = NULL;}
 #endif
 
-static long totalConnectionNow = 0;
-static int totalConnectionAllowed = 100;
-static pthread_t serverThreads;
-static sem_t waitThread;
-static pthread_mutex_t lockRead = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t lockCount = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t lockSearchPath = PTHREAD_MUTEX_INITIALIZER;
+static long _totalConnectionNow = 0;
+static int _totalConnectionAllowed = 100;
+static pthread_t _serverThreads;
+static sem_t _waitThread;
+static pthread_mutex_t _lockRead = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t _lockCount = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t _lockSearchPath = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct
 {
@@ -78,7 +78,7 @@ typedef struct
     csvrRequest_t *request;
 }csvrThreadsData_t;
 
-static size_t lengthTypeTranslator[csvrTypeMax] = 
+static size_t _lengthTypeTranslator[csvrTypeMax] = 
 {
     [csvrTypeNotKnown ] = 0,
     [csvrTypeGet      ] = 3,
@@ -89,7 +89,7 @@ static size_t lengthTypeTranslator[csvrTypeMax] =
     [csvrTypeUnknwon  ] = 0,
 };
 
-static char *typeStringTranslator[] = 
+static char *_typeStringTranslator[] = 
 {
     [csvrTypeNotKnown ] = "",
     [csvrTypeGet      ] = "GET ",
@@ -102,16 +102,16 @@ static char *typeStringTranslator[] =
 
 static void csvrIncreaseConnectionCounter()
 {
-    pthread_mutex_lock(&lockCount);
-    totalConnectionNow++;
-    pthread_mutex_unlock(&lockCount);
+    pthread_mutex_lock(&_lockCount);
+    _totalConnectionNow++;
+    pthread_mutex_unlock(&_lockCount);
 }
 
 static void csvrDecreaseConnectionCounter()
 {
-    pthread_mutex_lock(&lockCount);
-    totalConnectionNow--;
-    pthread_mutex_unlock(&lockCount);
+    pthread_mutex_lock(&_lockCount);
+    _totalConnectionNow--;
+    pthread_mutex_unlock(&_lockCount);
 }
 
 static csvrRequestType_e getRequestType(char*header)
@@ -647,11 +647,11 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
     }
 
     csvrErrCode_e ret = csvrSystemFailure;
-    pthread_mutex_lock(&lockRead);
+    pthread_mutex_lock(&_lockRead);
     do
     {
         /* 1. Listen to socket */
-        if (listen(input->sockfd, totalConnectionAllowed) != 0)
+        if (listen(input->sockfd, _totalConnectionAllowed) != 0)
         {
             ret = csvrCannotListenSocket;
             break;
@@ -680,7 +680,7 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
             continue;
         }
     }while(0);
-    pthread_mutex_unlock(&lockRead);
+    pthread_mutex_unlock(&_lockRead);
     return ret;
 }
 
@@ -722,7 +722,7 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     csvrThreadsData_t *data = (csvrThreadsData_t*)arg;
     if(data == NULL)
     {
-        sem_post(&waitThread);
+        sem_post(&_waitThread);
         printf("[INFO] Invalid data during user procedure\n");
         pthread_exit(NULL);
     }
@@ -732,11 +732,11 @@ static void *csvrProcessUserProcedureThreads(void *arg)
         if(data->server == NULL) printf("[INFO] Invalid data->server during user procedure\n");
         if(data->request == NULL) printf("[INFO] Invalid data->request during user procedure\n");
         csvrReadFinish(data->request, NULL);
-        sem_post(&waitThread);
+        sem_post(&_waitThread);
         pthread_exit(NULL);
     }
 
-    sem_post(&waitThread);
+    sem_post(&_waitThread);
     csvrIncreaseConnectionCounter();
 
     do
@@ -747,13 +747,13 @@ static void *csvrProcessUserProcedureThreads(void *arg)
         {
             struct csvrPathUrl_t * path = NULL;
             struct csvrPathUrl_t * current = NULL;
-            pthread_mutex_lock(&lockSearchPath);
+            pthread_mutex_lock(&_lockSearchPath);
             current = data->server->path;
             path = csvrSearchUri(current, data->request->path, data->request->type);
-            pthread_mutex_unlock(&lockSearchPath);
+            pthread_mutex_unlock(&_lockSearchPath);
             if(path)
             {
-                printf("[%s %s] %s\n",typeStringTranslator[data->request->type], data->request->clientAddress, data->request->path);
+                printf("[%s %s] %s\n",_typeStringTranslator[data->request->type], data->request->clientAddress, data->request->path);
                 (*path->callbackFunction)(data->request, data->userData);
             }
             /* If path not found */
@@ -813,7 +813,7 @@ static void *csvrAsyncronousThreads(void * arg)
         pthread_exit(NULL);
     }
 
-    sem_init(&waitThread,0,0);
+    sem_init(&_waitThread,0,0);
     printf("[INFO] Server is listening at port %u\n", threadsData->server->port);
 
     pthread_mutex_t lockThreads = PTHREAD_MUTEX_INITIALIZER;
@@ -833,7 +833,7 @@ static void *csvrAsyncronousThreads(void * arg)
         memset(request,0,sizeof(csvrRequest_t));
         request->serverName  = strdup(threadsData->server->serverName);
         /* 1. Listen to socket */
-        if (listen(threadsData->server->sockfd, totalConnectionAllowed) != 0)
+        if (listen(threadsData->server->sockfd, _totalConnectionAllowed) != 0)
         {
             printf("[INFO] Failed listen socket: %s\n", strerror(errno));
             pthread_mutex_unlock(&lockThreads);
@@ -919,7 +919,7 @@ csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
     threadsData->server = server;
     threadsData->userData = userData;
 
-    int status = pthread_create(&serverThreads,NULL,csvrAsyncronousThreads,(void*)threadsData);
+    int status = pthread_create(&_serverThreads,NULL,csvrAsyncronousThreads,(void*)threadsData);
     if(status != 0)
     {
         FREE(threadsData);
@@ -1042,7 +1042,7 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
         if(retprint == -1)
         {
             /* Send empty reply */
-            printf("[%s %s] %s Empty reply - Failed allocate memory\n",typeStringTranslator[request->type], request->clientAddress, request->path);
+            printf("[%s %s] %s Empty reply - Failed allocate memory\n",_typeStringTranslator[request->type], request->clientAddress, request->path);
             send(request->clientfd, "", 0, 0);
             FREE(payload);
             FREE(message);
@@ -1062,12 +1062,12 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     if(retprint == -1)
     {
         /* Send empty reply */
-        printf("[%s %s] %s Empty reply - Failed allocate memory\n",typeStringTranslator[request->type], request->clientAddress, request->path);
+        printf("[%s %s] %s Empty reply - Failed allocate memory\n",_typeStringTranslator[request->type], request->clientAddress, request->path);
         send(request->clientfd, "", 0, 0);
     }
     else
     {
-        printf("[%s %s] %s %i %s\n",typeStringTranslator[request->type], request->clientAddress, request->path, code, desc);
+        printf("[%s %s] %s %i %s\n",_typeStringTranslator[request->type], request->clientAddress, request->path, code, desc);
         sendStatus = send(request->clientfd, payload, strlen(payload), 0);
     }
 
@@ -1157,8 +1157,8 @@ csvrErrCode_e csvrShutdown(csvrServer_t *server)
     if(server->asyncFlag)
     {
         printf("[INFO] Canceling threads\n");
-        pthread_cancel(serverThreads);
-        pthread_join(serverThreads, NULL);
+        pthread_cancel(_serverThreads);
+        pthread_join(_serverThreads, NULL);
     }
 
     FREE(server->serverName);
@@ -1229,16 +1229,16 @@ csvrErrCode_e csvrJoin(csvrServer_t *server)
 }
 
 /************************************************************************************************************
- * @brief Function to get current total client connection socket which is saved in the totalConnectionNow variable.
+ * @brief Function to get current total client connection socket which is saved in the _totalConnectionNow variable.
  *        The value will be reset if the application is restarted.
  * 
  * @return This function will return the total of current socket client connections.
  *************************************************************************************************************/
 long csvrGetTotalConnection()
 {
-    pthread_mutex_lock(&lockCount);
-    long total = totalConnectionNow;
-    pthread_mutex_unlock(&lockCount);
+    pthread_mutex_lock(&_lockCount);
+    long total = _totalConnectionNow;
+    pthread_mutex_unlock(&_lockCount);
     return total;
 }
 
@@ -1441,7 +1441,7 @@ int main()
     int http = getHttpVersion(header);
     printf("Http version: %d\n",http);
     printf("Path: %s\n",path);
-    printf("Type request: %s\n",typeStringTranslator[getRequestType(header)]);
+    printf("Type request: %s\n",_typeStringTranslator[getRequestType(header)]);
     size_t ret = getContentLength(header, strlen(header));
     printf("Result: %lu\n",ret);
     printf("Servername %s\n",DEFAULT_SERVER_NAME);
