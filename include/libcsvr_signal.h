@@ -28,8 +28,25 @@
 #ifndef LIBCSVR_SIGNAL_H
 #define LIBCSVR_SIGNAL_H
 
+/***************************************************************************************************************
+ * @brief This function will initialize the sigaction to catch the SIGINT signal and SIGTERM signal during runtime process.
+ * 
+ * @return This function will return the result of sem_init process.
+ ***************************************************************************************************************/
 int csvrInitSignal();
+
+/***************************************************************************************************************
+ * @brief Function to catch the signal by waiting in the sem_wait function.
+ * 
+ * @return This function will return the result of sem_wait process.
+ ***************************************************************************************************************/
 int csvrWaitSignal();
+
+/***************************************************************************************************************
+ * @brief This function will destroy the sem_t object that has been initialized by sem_init.
+ * 
+ * @return This function will return the result of sem_destroy process.
+ ***************************************************************************************************************/
 int csvrDestroySignal();
 
 #endif
