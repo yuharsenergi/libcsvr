@@ -53,20 +53,20 @@
  ***************************************************************************************************************/
 typedef enum
 {
-    csvrSuccess             = 0,    /** If any procedure is complete successfully. */
-    csvrNotAnError          = 1,    /** If the procedure shows a process that is not a success but is not also an error. */
-    csvrSystemFailure       = 2,    /** If any procedure shows a failure process. For example : Failed during allocating memory for dynamic allocation variable. */
-    csvrUriAlreadyExists    = 3,    /** If any URI is already exists in the csvrPathUrl_t linked list object. */
-    csvrCannotBindingSocket = 4,    /** If cannot bind requested port during csvrInit binding procedure. Probably the port already in used by another process. See the bind() programming manual. */
-    csvrCannotCreateSocket  = 5,    /** If cannot create TCP socket. Currently this enumeration is not used in any functions return value. */
-    csvrCannotListenSocket  = 6,    /** If cannot listen to the opened socket by csvrInit. Any error is describe in the errno variable from the listen() procedure. See the listen() programming manual. */
-    csvrCannotAcceptSocket  = 7,    /** If cannot accept incoming request to the opened socket by csvrInit. Any error is describe in the errno variable from the accept() procedure. See the accept() programming manual. */
-    csvrFailedSendData      = 8,    /** If cannot send data during sending response to the client socket which has been created by accept() functions. See the send() programming manual. */
-    csvrFailedReadSocket    = 9,    /** If cannot read data during sending response to the client socket which has been created by accept() functions. See the read() programming manual. */
-    csvrInvalidInput        = 10,   /** If any of the input function arguments are invalid. For example a NULL value assigned to a function argument that does not accept NULL pointer. */
-    csvrInvalidBody         = 11,   /** If the body pointer in the csvrResponse_t structure is NULL. The user must set the body or content of the response by calling csvrAddContent function before calling csvrSendResponse. */
-    csvrInvalidHeader       = 12,   /** If cannot get the path URI of the incoming request header data in the getRequestUriPath function. */
-    csvrNoContentLength     = 13,   /** If no content length found during checking the incoming header data from a POST type request in the csvrClientReader function. */
+    csvrSuccess             = 0,    /**< If any procedure is complete successfully. */
+    csvrNotAnError          = 1,    /**< If the procedure shows a process that is not a success but is not also an error. */
+    csvrSystemFailure       = 2,    /**< If any procedure shows a failure process. For example : Failed during allocating memory for dynamic allocation variable. */
+    csvrUriAlreadyExists    = 3,    /**< If any URI is already exists in the csvrPathUrl_t linked list object. */
+    csvrCannotBindingSocket = 4,    /**< If cannot bind requested port during csvrInit binding procedure. Probably the port already in used by another process. See the bind() programming manual. */
+    csvrCannotCreateSocket  = 5,    /**< If cannot create TCP socket. Currently this enumeration is not used in any functions return value. */
+    csvrCannotListenSocket  = 6,    /**< If cannot listen to the opened socket by csvrInit. Any error is describe in the errno variable from the listen() procedure. See the listen() programming manual. */
+    csvrCannotAcceptSocket  = 7,    /**< If cannot accept incoming request to the opened socket by csvrInit. Any error is describe in the errno variable from the accept() procedure. See the accept() programming manual. */
+    csvrFailedSendData      = 8,    /**< If cannot send data during sending response to the client socket which has been created by accept() functions. See the send() programming manual. */
+    csvrFailedReadSocket    = 9,    /**< If cannot read data during sending response to the client socket which has been created by accept() functions. See the read() programming manual. */
+    csvrInvalidInput        = 10,   /**< If any of the input function arguments are invalid. For example a NULL value assigned to a function argument that does not accept NULL pointer. */
+    csvrInvalidBody         = 11,   /**< If the body pointer in the csvrResponse_t structure is NULL. The user must set the body or content of the response by calling csvrAddContent function before calling csvrSendResponse. */
+    csvrInvalidHeader       = 12,   /**< If cannot get the path URI of the incoming request header data in the getRequestUriPath function. */
+    csvrNoContentLength     = 13,   /**< If no content length found during checking the incoming header data from a POST type request in the csvrClientReader function. */
     csvrErrMax
 }csvrErrCode_e;
 
