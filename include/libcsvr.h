@@ -74,16 +74,16 @@ typedef enum
  * @brief Enumeration to describe which HTTP format version is being used.
  ***************************************************************************************************************/
 typedef enum{
-    http1_0 = 0,
-    http1_1 = 1
+    http1_0 = 0,        /**< If the HTTP version is HTTP/1.0 */
+    http1_1 = 1         /**< If the HTTP version is HTTP/1.1 */
 }csvrHttpVersion_e;
 
 /***************************************************************************************************************
  * @brief Enumeration to describe the Connection-Type in the process.
  ***************************************************************************************************************/
 typedef enum{
-    csvrConnKeepAlive = 0,
-    csvrConnClosed    = 1
+    csvrConnKeepAlive = 0,  /**< If incoming request is Connection keep-alive */
+    csvrConnClosed    = 1   /**< If incoming request is Connection closed */
 }csvrConnectionType_e;
 
 /***************************************************************************************************************
@@ -92,13 +92,13 @@ typedef enum{
  *        Any other request will be handled as GET type request.
  ***************************************************************************************************************/
 typedef enum{
-    csvrTypeNotKnown  = 0,
-    csvrTypeGet       = 1,
-    csvrTypePut       = 2,
-    csvrTypePost      = 3,
-    csvrTypeHead      = 4,
-    csvrTypeDelete    = 5,
-    csvrTypeUnknwon   = 6,
+    csvrTypeNotKnown  = 0,      /**< If the csvrRequestType_e variable is not set. Maybe the csvrRequest_t variable was just newly created. */
+    csvrTypeGet       = 1,      /**< If incoming request type is GET */
+    csvrTypePut       = 2,      /**< If incoming request type is PUT */
+    csvrTypePost      = 3,      /**< If incoming request type is POST */
+    csvrTypeHead      = 4,      /**< If incoming request type is HEAD */
+    csvrTypeDelete    = 5,      /**< If incoming request type is DELETE */
+    csvrTypeUnknwon   = 6,      /**< If incoming request type is not known  */
     csvrTypeMax
 }csvrRequestType_e;
 
@@ -106,14 +106,15 @@ typedef enum{
  * @brief Enumeration to describe the Content-Type of the incoming POST data body.
  ***************************************************************************************************************/
 typedef enum{
-    noContentType   = 0,
-    applicationJson = 1,
-    textHtml        = 2,
+    noContentType   = 0,        /**< If no content-type key not found in the incoming header request payload. Usually it comes from a not POST request. */
+    applicationJson = 1,        /**< If the content-type of the incoming body request payload is "application/json". Usually it comes from a POST request, or to set application/json content-type in the response payload. */
+    textHtml        = 2,        /**< If the content-type of the incoming body request payload is "text/html". Usually it comes from a POST request, or to set text/html content-type in the response payload */
     maxContentType
 }csvrContentType_e;
 
 /***************************************************************************************************************
  * @brief Enumeration to set the HTTP response code.
+ * @see <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#client_error_responses">HTTP response status codes</a> 
  ***************************************************************************************************************/
 typedef enum{
     /* Information response */
