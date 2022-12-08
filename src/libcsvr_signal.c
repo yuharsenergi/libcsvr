@@ -23,13 +23,26 @@ SOFTWARE.
 #include <signal.h>
 #include <semaphore.h>
 
-sem_t csvrSemaphore;
+/**
+ * @brief The csvr semaphore signal variable.
+ * 
+ */
+static sem_t csvrSemaphore;
 
+/**
+ * @brief This is callback function when the libcsvr is run using asyncronous method by calling csvrServerStart
+ * 
+ */
 static void csvrSignalCallback()
 {
     sem_post(&csvrSemaphore);
 }
 
+/**
+ * @brief This function will initialize the sigaction to catch the SIGINT signal and SIGTERM signal during runtime process.
+ * 
+ * @return This function will return the result of sem_init process.
+ */
 int csvrInitSignal()
 {
     struct sigaction sigintHandler;
@@ -50,11 +63,21 @@ int csvrInitSignal()
     return sem_init(&csvrSemaphore, 0, 0);
 }
 
+/**
+ * @brief Function to catch the signal by waiting in the sem_wait function.
+ * 
+ * @return This function will return the result of sem_wait process.
+ */
 int csvrWaitSignal()
 {
     return sem_wait(&csvrSemaphore);
 }
 
+/**
+ * @brief This function will destroy the sem_t object that has been initialized by sem_init.
+ * 
+ * @return This function will return the result of sem_destroy process.
+ */
 int csvrDestroySignal()
 {
     return sem_destroy(&csvrSemaphore);
