@@ -108,21 +108,21 @@ static char *_typeStringTranslator[] =
     [csvrTypeUnknwon  ] = "",
 };
 
-static void csvrIncreaseConnectionCounter()
+CSVR_STATIC void csvrIncreaseConnectionCounter()
 {
     pthread_mutex_lock(&_lockCount);
     _totalConnectionNow++;
     pthread_mutex_unlock(&_lockCount);
 }
 
-static void csvrDecreaseConnectionCounter()
+CSVR_STATIC void csvrDecreaseConnectionCounter()
 {
     pthread_mutex_lock(&_lockCount);
     _totalConnectionNow--;
     pthread_mutex_unlock(&_lockCount);
 }
 
-static csvrRequestType_e getRequestType(char*header)
+CSVR_STATIC csvrRequestType_e getRequestType(char*header)
 {
     csvrRequestType_e type = csvrTypeUnknwon;
     if(!memcmp("POST", header, 4))
@@ -148,7 +148,7 @@ static csvrRequestType_e getRequestType(char*header)
     return type;
 }
 
-static int getContentLength(char*header, size_t headerLen)
+CSVR_STATIC int getContentLength(char*header, size_t headerLen)
 {
     if(header == NULL)
     {
@@ -188,7 +188,7 @@ static int getContentLength(char*header, size_t headerLen)
     return contentLength;
 }
 
-static csvrContentType_e getContentType(char*header)
+CSVR_STATIC csvrContentType_e getContentType(char*header)
 {
     if(header == NULL)
     {
@@ -244,7 +244,7 @@ static csvrContentType_e getContentType(char*header)
     return contentType;
 }
 
-static csvrErrCode_e getHeaderKeyValue(char*header, char*key, char *dest, size_t maxlen)
+CSVR_STATIC csvrErrCode_e getHeaderKeyValue(char*header, char*key, char *dest, size_t maxlen)
 {
     if(header == NULL || key == NULL || dest == NULL)
     {
@@ -287,7 +287,7 @@ static csvrErrCode_e getHeaderKeyValue(char*header, char*key, char *dest, size_t
     return ret;
 }
 
-static csvrErrCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
+CSVR_STATIC csvrErrCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
 {
     if(header == NULL || dest == NULL)
     {
@@ -336,7 +336,7 @@ static csvrErrCode_e getRequestUriPath(char*header, char*dest, size_t maxlen)
     return ret;
 }
 
-static csvrHttpVersion_e getHttpVersion(char*header)
+CSVR_STATIC csvrHttpVersion_e getHttpVersion(char*header)
 {
     csvrHttpVersion_e version = http1_0;
     size_t len = 0;
@@ -377,7 +377,7 @@ static csvrHttpVersion_e getHttpVersion(char*header)
  *          csvrCannotAcceptSocket,
  *          csvrSuccess
  ***************************************************************************************************************/
-static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
+CSVR_STATIC csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
 {
     if(output == NULL)
     {
@@ -531,7 +531,7 @@ static csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
  * @return This function will return NULL if no URI of requested path not registered. Otherwise, it will return
  *         current pointer of the path linked list.
  *************************************************************************************************************/
-static struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path, csvrRequestType_e type)
+CSVR_STATIC struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *path, csvrRequestType_e type)
 {
     struct csvrPathUrl_t * current = NULL;
     struct csvrPathUrl_t * head = NULL;
@@ -555,7 +555,7 @@ static struct csvrPathUrl_t *csvrSearchUri(struct csvrPathUrl_t *input, char *pa
     return current;
 }
 
-static void *csvrProcessUserProcedureThreads(void *arg)
+CSVR_STATIC void *csvrProcessUserProcedureThreads(void *arg)
 {
     csvrThreadsData_t *data = (csvrThreadsData_t*)arg;
     if(data == NULL)
@@ -624,7 +624,7 @@ static void *csvrProcessUserProcedureThreads(void *arg)
     pthread_exit(NULL);
 }
 
-static void csvrAsyncronousThreadsCleanUp(void *arg)
+CSVR_STATIC void csvrAsyncronousThreadsCleanUp(void *arg)
 {
     csvrThreadsData_t *data = (csvrThreadsData_t *)arg;
     if(data)
@@ -638,7 +638,7 @@ static void csvrAsyncronousThreadsCleanUp(void *arg)
     }
 }
 
-static void *csvrAsyncronousThreads(void * arg)
+CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
 {
     csvrThreadsData_t *threadsData = (csvrThreadsData_t *)arg;
     if(threadsData == NULL || threadsData->server == NULL) pthread_exit(NULL);

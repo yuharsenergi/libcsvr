@@ -43,6 +43,14 @@
 /** Macro helper to print the errno information. */
 #define CSVR_PRINT_ERRNO() {printf("errno : (%d) %s\n", errno,strerror(errno));}
 
+/** Macro helper to determine the environment information. */
+#ifdef CSVR_UNIT_TEST
+/** This macro will be used for libcsvr unit testing purpose. */
+#define CSVR_STATIC
+#else
+#define CSVR_STATIC static
+#endif
+
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
