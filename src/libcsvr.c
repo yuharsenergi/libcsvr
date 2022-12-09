@@ -798,9 +798,9 @@ csvrServer_t *csvrInit(uint16_t port)
     return server;
 }
 
-csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...)
+csvrErrCode_e csvrSetCustomServerName(csvrServer_t *server, char *serverName, ...)
 {
-    if(input == NULL || serverName == NULL)
+    if(server == NULL || serverName == NULL)
     {
         return csvrInvalidInput;
     }
@@ -821,12 +821,12 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName, ...
         return csvrNotAnError;
     }
 
-    CSVR_FREE(input->serverName);
-    input->serverName = calloc(strlen(temp) + 1, sizeof(char));
-    memset(input->serverName, 0, strlen(temp) + 1);
-    snprintf(input->serverName, strlen(temp) + 1, "%s", temp);
+    CSVR_FREE(server->serverName);
+    server->serverName = calloc(strlen(temp) + 1, sizeof(char));
+    memset(server->serverName, 0, strlen(temp) + 1);
+    snprintf(server->serverName, strlen(temp) + 1, "%s", temp);
     CSVR_FREE(temp);
-    if(input->serverName == NULL)
+    if(server->serverName == NULL)
     {
         return csvrSystemFailure;
     }
@@ -1000,9 +1000,9 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     return ret;
 }
 
-csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
+csvrErrCode_e csvrRead(csvrServer_t *server, csvrRequest_t *output)
 {
-    if(input == NULL || output == NULL)
+    if(server == NULL || output == NULL)
     {
         return csvrInvalidInput;
     }
@@ -1012,7 +1012,7 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
     do
     {
         /* 1. Listen to socket */
-        if (listen(input->sockfd, _totalConnectionAllowed) != 0)
+        if (listen(server->sockfd, _totalConnectionAllowed) != 0)
         {
             ret = csvrCannotListenSocket;
             break;
@@ -1024,7 +1024,7 @@ csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output)
         /* 2. Get the socket configuration to get the client address */
         socklen_t peerAddrSize = sizeof(client);
         output->clientfd = -1;
-        output->clientfd = accept(input->sockfd, (struct sockaddr*)&client, &peerAddrSize);
+        output->clientfd = accept(server->sockfd, (struct sockaddr*)&client, &peerAddrSize);
         if (output->clientfd < 0)
         {
             ret = csvrCannotAcceptSocket;
@@ -1219,24 +1219,24 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     return csvrSuccess;
 }
 
-csvrErrCode_e csvrAddPath(csvrServer_t *input, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *))
+csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *))
 {
-    if(input == NULL || path == NULL || (*callbackFunction) == NULL)
+    if(server == NULL || path == NULL || (*callbackFunction) == NULL)
     {
         return csvrInvalidInput;
     }
 
     /* Handle if server not initialize yet */
-    if(input->sockfd == -1)
+    if(server->sockfd == -1)
     {
         return csvrNotAnError;
     }
 
     /* Search if URI already exists */
     struct csvrPathUrl_t * current = NULL;
-    if(input->path)
+    if(server->path)
     {
-        current = input->path;
+        current = server->path;
         while(current)
         {
             if(!memcmp(current->name, path, strlen(path)))
@@ -1258,8 +1258,8 @@ csvrErrCode_e csvrAddPath(csvrServer_t *input, char *path, csvrRequestType_e typ
     newPath->type = type;
     newPath->name = strdup(path);
     newPath->callbackFunction = (*callbackFunction);
-    newPath->next = input->path;
-	input->path   = newPath;
+    newPath->next = server->path;
+	server->path   = newPath;
 
     return csvrSuccess;
 }
