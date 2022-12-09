@@ -29,6 +29,7 @@
 #include <signal.h>
 #include <semaphore.h>
 
+#include "libcsvr.h"
 /**
  * @brief The csvr semaphore signal variable.
  * 
@@ -39,7 +40,7 @@ static sem_t _csvrSemaphore;
  * @brief This is callback function when the libcsvr is run using asyncronous method by calling csvrServerStart
  * 
  */
-static void csvrSignalCallback()
+CSVR_STATIC void csvrSignalCallback()
 {
     sem_post(&_csvrSemaphore);
 }
