@@ -198,7 +198,7 @@ typedef struct
     char clientAddress[INET_ADDRSTRLEN];
     char host[100];
     char path[100];
-    char *serverName;   /* The copied server name */
+    char serverName[100];   /* The copied server name */
     char *message;      /* Full data header + body (if any) */
     char *header;       /* The header data only */
     char *content;      /* The content data only */
@@ -222,7 +222,7 @@ typedef struct
     bool asyncFlag; /* To tell libcsvr that the server is running in async mode. */
 
     int sockfd;
-    char *serverName;
+    char serverName[100];
     uint16_t port;
     struct csvrPathUrl_t * path;
 }csvrServer_t;

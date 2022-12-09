@@ -568,8 +568,16 @@ CSVR_STATIC void *csvrProcessUserProcedureThreads(void *arg)
     if(data->server == NULL || data->request == NULL)
     {
         if(data->server == NULL) printf("[INFO] Invalid data->server during user procedure\n");
-        if(data->request == NULL) printf("[INFO] Invalid data->request during user procedure\n");
-        csvrReadFinish(data->request, NULL);
+        if(data->request == NULL)
+        {
+            printf("[INFO] Invalid data->request during user procedure\n");
+        }
+        else
+        {
+            csvrReadFinish(data->request, NULL);
+            CSVR_FREE(data->request);
+            CSVR_FREE(data);
+        }
         sem_post(&_waitThread);
         pthread_exit(NULL);
     }
@@ -617,6 +625,7 @@ CSVR_STATIC void *csvrProcessUserProcedureThreads(void *arg)
             csvrReadFinish(data->request, NULL);
         }
         CSVR_FREE(data->request);
+        CSVR_FREE(data);
     } while (0);
 
     csvrDecreaseConnectionCounter();
@@ -626,16 +635,28 @@ CSVR_STATIC void *csvrProcessUserProcedureThreads(void *arg)
 
 CSVR_STATIC void csvrAsyncronousThreadsCleanUp(void *arg)
 {
+    #if 0
     csvrThreadsData_t *data = (csvrThreadsData_t *)arg;
     if(data)
     {
         if(data->request)
         {
             csvrReadFinish(data->request, NULL);
-            CSVR_FREE(data->request);
+            free(data->request);
         }
-        CSVR_FREE(data);
+        free(data);
     }
+    #else
+    if(arg)
+    {
+        if(((csvrThreadsData_t *)arg)->request)
+        {
+            csvrReadFinish(((csvrThreadsData_t *)arg)->request, NULL);
+            CSVR_FREE(((csvrThreadsData_t *)arg)->request);
+        }
+        CSVR_FREE(arg);
+    }
+    #endif
 }
 
 CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
@@ -668,8 +689,10 @@ CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
         }
 
         /* save the pointer here */
+        threadsData->request = request;
+
         memset(request,0,sizeof(csvrRequest_t));
-        request->serverName  = strdup(threadsData->server->serverName);
+        memcpy(request->serverName, threadsData->server->serverName, sizeof(request->serverName) - 1);
         /* 1. Listen to socket */
         if (listen(threadsData->server->sockfd, _totalConnectionAllowed) != 0)
         {
@@ -701,8 +724,20 @@ CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
 
         /* if success, do the procedure based on the path */
         pthread_t threadClient;
-        threadsData->request = request;
-        int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)threadsData);
+        csvrThreadsData_t *userThreadsData = NULL;
+        userThreadsData = calloc(1, sizeof(csvrThreadsData_t));
+        if(userThreadsData == NULL)
+        {
+            CSVR_FREE(request);
+            pthread_mutex_unlock(&lockThreads);
+            break;
+        }
+
+        /* save the pointer again here */
+        userThreadsData->request  = request;
+        userThreadsData->server   = threadsData->server;
+        userThreadsData->userData = threadsData->userData;
+        int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)userThreadsData);
         /* If success, detach the threads */
         if(status == 0)
         {
@@ -787,12 +822,8 @@ csvrServer_t *csvrInit(uint16_t port)
         sleep(1);
     }
 
-    CSVR_FREE(server->serverName);
-
-    size_t lenServerName = strlen(CSVR_NAME) + strlen(CSVR_VERSION) + 1;
-    server->serverName = calloc(lenServerName + 1, sizeof(char));
-    memset(server->serverName, 0, lenServerName + 1);
-    snprintf(server->serverName, lenServerName + 1, "%s-%s", (char*)CSVR_NAME, (char*)CSVR_VERSION);
+    memset(server->serverName, 0, sizeof(server->serverName));
+    snprintf(server->serverName, sizeof(server->serverName), "%s-%s", (char*)CSVR_NAME, (char*)CSVR_VERSION);
 
     server->path = NULL;
     return server;
@@ -812,7 +843,7 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *server, char *serverName, ..
     va_end(aptr);
     if(ret == -1)
     {
-        return -1;
+        return csvrSystemFailure;
     }
 
     if(strlen(temp) == 0)
@@ -821,16 +852,9 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *server, char *serverName, ..
         return csvrNotAnError;
     }
 
-    CSVR_FREE(server->serverName);
-    server->serverName = calloc(strlen(temp) + 1, sizeof(char));
     memset(server->serverName, 0, strlen(temp) + 1);
-    snprintf(server->serverName, strlen(temp) + 1, "%s", temp);
+    memcpy(server->serverName, temp, sizeof(server->serverName));
     CSVR_FREE(temp);
-    if(server->serverName == NULL)
-    {
-        return csvrSystemFailure;
-    }
-
     return csvrSuccess;
 }
 
@@ -995,6 +1019,7 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
         ret = csvrFailedSendData;
     }
 
+    CSVR_FREE(header);
     CSVR_FREE(payload);
     CSVR_FREE(message);
     return ret;
@@ -1070,7 +1095,6 @@ csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *response)
         CSVR_FREE(request->message);
         CSVR_FREE(request->header);
         CSVR_FREE(request->content);
-        CSVR_FREE(request->serverName);
     }
 
     if(response)
@@ -1104,8 +1128,6 @@ csvrErrCode_e csvrShutdown(csvrServer_t *server)
         pthread_cancel(_serverThreads);
         pthread_join(_serverThreads, NULL);
     }
-
-    CSVR_FREE(server->serverName);
 
     printf("[INFO] Closing running socket\n");
     int sockType = 0;

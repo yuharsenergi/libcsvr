@@ -57,6 +57,7 @@ char *generateUuid()
     uuid[strlen(uuid)] = 0;
     return uuid;
 }
+
 void *handlerGetUuid(csvrRequest_t *request, void *userData)
 {
     printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path,request->content ? request->content : "");
