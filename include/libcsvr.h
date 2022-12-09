@@ -38,6 +38,18 @@
 #define CSVR_NAME    "libcsvr"
 /** The current csvr version *///
 #define CSVR_VERSION "1.0"
+/** Macro helper to free pointer memory. */
+#define CSVR_FREE(ptr) if(ptr != NULL) {free(ptr);ptr = NULL;}
+/** Macro helper to print the errno information. */
+#define CSVR_PRINT_ERRNO() {printf("errno : (%d) %s\n", errno,strerror(errno));}
+
+/** Macro helper to determine the environment information. */
+#ifdef CSVR_UNIT_TEST
+/** This macro will be used for libcsvr unit testing purpose. */
+#define CSVR_STATIC
+#else
+#define CSVR_STATIC static
+#endif
 
 #include <netdb.h>
 #include <netinet/in.h>
@@ -160,6 +172,7 @@ typedef enum{
     csvrResponseNotExtended             = 510,
     csvrResponseNetworkAuthenticationRequired = 511,
 
+    csvrResponseMax
 }csvrHttpResponseCode_e;
 
 /***************************************************************************************************************
@@ -225,20 +238,165 @@ struct csvrPathUrl_t
     struct csvrPathUrl_t *next;
 };
 
+/***************************************************************************************************************
+ * @brief Function to initialize an allocated csvrServer_t pointer which will be used for csvr procedure.
+ *  
+ * @param[in] port The user desired port on which the user wants the server to listen for incoming requests.
+ * @return If success, it will return allocated pointer of csvrServer_t. Otherwise, it will return NULL.
+ *         If it returns non NULL, the returned pointer must be freed using csvrShutdown function.
+ ***************************************************************************************************************/
 csvrServer_t *csvrInit(uint16_t port);
+
+/************************************************************************************************************
+ * @brief Function to start a new threads to handle incoming request.
+ * 
+ * @param[in] server Pointer to the csvrServer_t object which has been initialized using csvrInit. 
+ * @param[in] userData 
+ * @return csvrErrCode_e 
+ *************************************************************************************************************/
 csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData);
+
+/************************************************************************************************************
+ * @brief This function will wait for any termination signal which has been initialized by csvrSignalInit.
+ * 
+ * @param server 
+ * @return This function returns one of the following values:
+ *          csvrSuccess,
+ *          csvrNotAnError
+ *************************************************************************************************************/
 csvrErrCode_e csvrJoin(csvrServer_t *server);
 
-csvrErrCode_e csvrSetCustomServerName(csvrServer_t *input, char *serverName,...);
+/************************************************************************************************************
+ * @brief Function to close the main socket that has been opened by csvrInit,
+ *        releasing all the allocated memory in the csvrServer_t pointer variable, and
+ *        releasing the csvrPathUrl_t linked list object pointer.
+ * 
+ * @param[in,out] server Pointer to the csvrServer_t object which has been initialized using csvrInit. 
+ * @return This function always returns csvrSuccess 
+ *************************************************************************************************************/
 csvrErrCode_e csvrShutdown(csvrServer_t *input);
 
-csvrErrCode_e csvrRead(csvrServer_t *input, csvrRequest_t *output);
+/***************************************************************************************************************
+ * @brief Functions to read all the incoming data from newly created client socket from the listening procedure.
+ * 
+ * @param[in] server Pointer to the csvrServer_t object which has been initialized using csvrInit. 
+ * @param[out] output 
+ * @return This function returns one of the  following value : 
+ *          csvrInvalidInput,
+ *          csvrCannotListenSocket,
+ *          csvrCannotAcceptSocket,
+ *          csvrSuccess
+ ***************************************************************************************************************/
+csvrErrCode_e csvrRead(csvrServer_t *server, csvrRequest_t *output);
+
+/************************************************************************************************************
+ * @brief Function to close the client socket and releasing all the request and/or response resourced that 
+ *        has been used.
+ * 
+ * @param[in,out] request Pointer to the user csvrRequest_t object. NULL allowed.
+ * @param[in,out] response Pointer to the user csvrResponse_t object. NULL allowed.
+ * @return This function always return csvrSuccess
+ *************************************************************************************************************/
 csvrErrCode_e csvrReadFinish(csvrRequest_t *request, csvrResponse_t *csvrResponseInput);
+
+/************************************************************************************************************
+ * @brief Function to send response
+ * 
+ * @param[in] request Pointer to request structure, must not NULL.
+ * @param[in] response Pointer to response structure, must not NULL.
+ * @return This function returns one of the following value : 
+ *          csvrInvalidInput,
+ *          csvrInvalidBody,
+ *          csvrSystemFailure,
+ *          csvrFailedSendData,
+ *          csvrSuccess
+ *************************************************************************************************************/
 csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response);
+
+/************************************************************************************************************
+ * @brief Function to send HTTP error.
+ * @note It is not a public API. The user must not use this function to avoid
+ *       unexpected response.
+ *
+ * @param[in] request 
+ * @param[in] code The desired HTTP response code which is defined in csvrHttpResponseCode_e.
+ * @param[in] desc The HTTP reseponse code descriptions.
+ * 
+ * @return This function returns one of the following value : 
+ *          csvrInvalidInput,
+ *          csvrFailedSendData,
+ *          csvrSuccess
+ *************************************************************************************************************/
 csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCode_e code, char*desc);
+
+/***************************************************************************************************************
+ * @brief Function to set custom server name. Will be used in the response Header payload.
+ * 
+ * @param[in,out] server Pointer to the csvrServer_t object which has been initialized using csvrInit. 
+ * @param[in] serverName The desired server name. This input accept valist type.
+ * 
+ * @return This function returns one of the following value : 
+ *          csvrInvalidInput,
+ *          csvrNotAnError,
+ *          csvrSystemFailure,
+ *          csvrSuccess
+ ***************************************************************************************************************/
+csvrErrCode_e csvrSetCustomServerName(csvrServer_t *server, char *serverName,...);
+
+/************************************************************************************************************
+ * @brief Function to create custom header response.
+ * 
+ * @param[in,out] input pointer to csvrResponse_t variable.
+ * @param[in] key the header key. Example : "Accept",  "Content-Type", "your-own-header",etc.
+ * @param[in] value the value of the header key. Example : "application/json", "text/html", "Your own header key" etc.
+ * 
+ * @return This function returns one of the following value : 
+ *      csvrInvalidInput
+ *      csvrNotAnError
+ *      csvrSystemFailure
+ *      csvrSuccess
+ *************************************************************************************************************/
 csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value);
+
+/************************************************************************************************************
+ * @brief Function to add content payload to the response body.
+ * 
+ * @param[in,out] input The user pointer to csvrResponse_t object.
+ * @param[in] content The user body payload. This input accept valist type.
+ *
+ * @return This function returns one of the following value : 
+ *      csvrInvalidInput
+ *      csvrNotAnError
+ *      csvrSystemFailure
+ *      csvrSuccess
+ *************************************************************************************************************/
 csvrErrCode_e csvrAddContent(csvrResponse_t*input, char *content,...);
-csvrErrCode_e csvrAddPath(csvrServer_t *input, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *));
+
+/************************************************************************************************************
+ * @brief Function to add API request
+ * 
+ * @param[in,out] server Pointer to the csvrServer_t object which has been initialized using csvrInit. 
+ * @param[in] path The URI path. e.g. : "/", "/time", "/api/v1", etc.
+ * @param[in] type The type of the desired URI which is defined in csvrRequestType_e
+ * @param[in] callbackFunction The callback function. All the pointer to the callback function wil be saved in
+ *                             the csvrPathUrl_t->callbackFunction object. It only needs two argument:
+ *                             (1) the pointer to csvrRequest_t structure, and
+ *                             (2) the user object which will be saved in (void*) type pointer.
+ * 
+ * @return This function returns one of the following value : 
+ *      csvrInvalidInput
+ *      csvrNotAnError
+ *      csvrSystemFailure
+ *      csvrSuccess
+ *************************************************************************************************************/
+csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *));
+
+/************************************************************************************************************
+ * @brief Function to get current total client connection socket which is saved in the _totalConnectionNow variable.
+ *        The value will be reset if the application is restarted.
+ * 
+ * @return This function will return the total of current socket client connections.
+ *************************************************************************************************************/
 long csvrGetTotalConnection();
 
 #endif

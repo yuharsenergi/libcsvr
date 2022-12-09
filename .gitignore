@@ -38,3 +38,6 @@ m4/*.m4
 build
 test
 *.tar.gz
+
+#ignoring .vscode directory
+.vscode/settings.json

@@ -33,20 +33,26 @@
  * 
  * @return This function will return the result of sem_init process.
  ***************************************************************************************************************/
-int csvrInitSignal();
+int csvrSignalInit();
 
 /***************************************************************************************************************
  * @brief Function to catch the signal by waiting in the sem_wait function.
  * 
  * @return This function will return the result of sem_wait process.
  ***************************************************************************************************************/
-int csvrWaitSignal();
+int csvrSignalWait();
 
 /***************************************************************************************************************
  * @brief This function will destroy the sem_t object that has been initialized by sem_init.
  * 
  * @return This function will return the result of sem_destroy process.
  ***************************************************************************************************************/
-int csvrDestroySignal();
+int csvrSignalDestroy();
 
+/***************************************************************************************************************
+ * @brief For unit testing purpose
+ ***************************************************************************************************************/
+#ifdef CSVR_UNIT_TEST
+void csvrSignalCallback();
+#endif
 #endif
