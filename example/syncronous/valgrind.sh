@@ -1,9 +1,17 @@
 #!/bin/bash
 
-if [ "$#" -le 1 ]; then
+echo "Total argument $#"
+if [ "$#" -lt 1 ]; then
     printf "\n-- Binary file is mandatory! --\n\n"
     echo "Example :"
     printf "    $0 ./your/binary/file\n\n"
+    exit 0
+fi
+
+if [ "$#" -lt 2 ]; then
+    printf "\n-- Port definition is mandatory! --\n\n"
+    echo "Example :"
+    printf "    $0 $1 9000\n\n"
     exit 0
 fi
 
@@ -13,19 +21,14 @@ if [ "$fileType" != "application"  ]; then
     exit 0
 fi
 
-fileName=$2
 BIN=$1
+PORT=$2
 
-# if [[ "$1" == *"/"* ]];
-# then
-#     fileName=$($1 | rev | cut -d"/" -f1 | rev)
-# fi
-
-logFile="valgrind/$fileName-valgrind-check.txt"
+logFile="valgrind/syncronous-valgrind-check.txt"
 
 echo "File location : $(pwd)/$1"
 mkdir -p $(pwd)/valgrind
 echo "Filename : $fileName"
 echo "Logfile  : $logFile"
-echo "valgrind --leak-check=full --show-leak-kinds=all --verbose --log-file=$logFile $BIN"
-valgrind --leak-check=full --show-leak-kinds=all --verbose --log-file=$logFile $BIN
+echo "valgrind --leak-check=full --show-leak-kinds=all --verbose --log-file=$logFile $BIN $PORT"
+valgrind --leak-check=full --show-leak-kinds=all --verbose --log-file=$logFile $BIN $PORT
