@@ -857,7 +857,7 @@ csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
     }
 
     /* If server initialization procedure above success, init the signal */
-    csvrInitSignal();
+    csvrSignalInit();
 
     return csvrSuccess;
 }
@@ -948,7 +948,7 @@ csvrErrCode_e csvrSendResponseError(csvrRequest_t * request, csvrHttpResponseCod
     char *payload = NULL;
     char *header  = NULL;
     int retprint  = -1;
-    if(csvrCreateHttpErrorResponse(&message, request, code) == csvrSuccess)
+    if(csvrResponseGenerateHTMLContent(&message, request, code) == csvrSuccess)
     {
         retprint = asprintf(&header,
             "Content-Type: text/html; charset=utf-8\r\n"
@@ -1150,14 +1150,14 @@ csvrErrCode_e csvrShutdown(csvrServer_t *server)
     free(server);
     printf("[INFO] Shutdown procedure finished\n");
 
-    csvrDestroySignal();
+    csvrSignalDestroy();
 
     return csvrSuccess;
 }
 
 csvrErrCode_e csvrJoin(csvrServer_t *server)
 {
-    if(!csvrWaitSignal())
+    if(!csvrSignalWait())
     {
         return csvrSuccess;
     }

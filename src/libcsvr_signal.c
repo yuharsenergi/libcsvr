@@ -45,7 +45,7 @@ CSVR_STATIC void csvrSignalCallback()
     sem_post(&_csvrSemaphore);
 }
 
-int csvrInitSignal()
+int csvrSignalInit()
 {
     struct sigaction sigintHandler;
     struct sigaction sigtermHandler;
@@ -65,12 +65,12 @@ int csvrInitSignal()
     return sem_init(&_csvrSemaphore, 0, 0);
 }
 
-int csvrWaitSignal()
+int csvrSignalWait()
 {
     return sem_wait(&_csvrSemaphore);
 }
 
-int csvrDestroySignal()
+int csvrSignalDestroy()
 {
     return sem_destroy(&_csvrSemaphore);
 }

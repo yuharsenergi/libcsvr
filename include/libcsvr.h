@@ -172,6 +172,7 @@ typedef enum{
     csvrResponseNotExtended             = 510,
     csvrResponseNetworkAuthenticationRequired = 511,
 
+    csvrResponseMax
 }csvrHttpResponseCode_e;
 
 /***************************************************************************************************************
@@ -256,7 +257,7 @@ csvrServer_t *csvrInit(uint16_t port);
 csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData);
 
 /************************************************************************************************************
- * @brief This function will wait for any termination signal which has been initialized by csvrInitSignal.
+ * @brief This function will wait for any termination signal which has been initialized by csvrSignalInit.
  * 
  * @param server 
  * @return This function returns one of the following values:
