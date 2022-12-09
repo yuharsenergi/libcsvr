@@ -1,8 +1,0 @@
-{
-    "C_Cpp.errorSquiggles": "Disabled",
-    "files.associations": {
-        "pthread.h": "c",
-        "stdbool.h": "c",
-        "libcsvr.h": "c"
-    }
-}

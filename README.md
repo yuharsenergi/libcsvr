@@ -3,11 +3,11 @@
 ## Developer's Note
 
 Hi ! Thank you for visiting.  
-I havent't added any release yet cause I am currently working in this project by now.  
+I haven't added any release yet cause I am currently working in this project by now.  
 But feel free to learn, and test this library.  
 
 ## Compilation Guide
-I am using autoconf compiation tools to create the shared library and static library. You would probably take these steps for linux distribution bu default which outputs will be installed inside the `/usr/lib` directory :
+I am using autoconf compilation tools to create the shared library and static library. By default, you would probably take these steps for linux distribution which outputs will be installed inside the `/usr/lib` directory :
 ```
 $ autoreconf -fvi
 $ ./configure
@@ -28,3 +28,6 @@ $ make install
 You can check the example in the example `Makefile.am` file here:
 * [Asyncronous example](./example/asyncronous/src/Makefile.am)
 * [Syncronous example](./example/syncronous/src/Makefile.am)
+
+***
+© Ergi, 2022

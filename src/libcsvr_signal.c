@@ -1,8 +1,7 @@
 /********************************************************************************
- * @file libcsvr_response.h
- * @ingroup libcsvr_response
+ * @file libcsvr_signal.c
  * @author Ergi (yuharsenergi@gmail.com)
- * @brief Collection functions of creating response payload for csvr
+ * @brief Collection functions of signal handling in csvr runtime
  * @version 0.1
  * @date 2022-12-06
  * 
@@ -26,24 +25,52 @@
  * SOFTWARE.
  * 
 ********************************************************************************/
-#ifndef LIBCSVR_RESPONSE_H
-#define LIBCSVR_RESPONSE_H
+#include <string.h>
+#include <signal.h>
+#include <semaphore.h>
 
 #include "libcsvr.h"
-
-/***************************************************************************************************************
- * @brief Function to create response payload based on given csvrHttpResponseCode_e
+/**
+ * @brief The csvr semaphore signal variable.
  * 
- * @param[out] dest pointer to char variable. This variable will be dynamically allocated and must be freed if
- *                  user already finished using the variable.
- * @param[in] request pointer to csvrRequest_t data structure which contains request type and path information.
- * @param[in] code the desired HTTP response code.
- * @return This function return one of the following value : 
- *          csvrInvalidInput,
- *          csvrNotAnError,
- *          csvrSystemFailure,
- *          csvrSuccess
- ***************************************************************************************************************/
-csvrErrCode_e csvrResponseGenerateHTMLContent(char **dest, csvrRequest_t * request, csvrHttpResponseCode_e code);
+ */
+static sem_t _csvrSemaphore;
 
-#endif
+/**
+ * @brief This is callback function when the libcsvr is run using asyncronous method by calling csvrServerStart
+ * 
+ */
+CSVR_STATIC void csvrSignalCallback()
+{
+    sem_post(&_csvrSemaphore);
+}
+
+int csvrSignalInit()
+{
+    struct sigaction sigintHandler;
+    struct sigaction sigtermHandler;
+
+    /* Signal handler for SIGINT */
+    memset(&sigintHandler, 0, sizeof(sigintHandler));
+    sigintHandler.sa_sigaction = &csvrSignalCallback;
+    sigintHandler.sa_flags = SA_SIGINFO;
+    sigaction(SIGINT, &sigintHandler, NULL);
+
+    /* Signal handler for SIGTERM */
+    memset(&sigtermHandler, 0, sizeof(sigtermHandler));
+    sigtermHandler.sa_sigaction = &csvrSignalCallback;
+    sigtermHandler.sa_flags = SA_SIGINFO;
+    sigaction(SIGTERM, &sigtermHandler, NULL);
+
+    return sem_init(&_csvrSemaphore, 0, 0);
+}
+
+int csvrSignalWait()
+{
+    return sem_wait(&_csvrSemaphore);
+}
+
+int csvrSignalDestroy()
+{
+    return sem_destroy(&_csvrSemaphore);
+}
