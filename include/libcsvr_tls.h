@@ -40,12 +40,14 @@ typedef struct
 typedef struct{
     SSL *ssl;
     char *content;
+    char address[30];
+    uint16_t port;
 }csvrTlsRequest_t;
 
-csvrTlsServer_t* csvrTLSInit(uint16_t);
+csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*privateKeyFile);
 void csvrTlsShutdown(csvrTlsServer_t *server);
 bool csvrCheckRoot();
-void csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request);
+csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request);
 void csvrTlsReadFinish(csvrTlsRequest_t* request);
 void csvrTlsSend(csvrTlsRequest_t* request, char *content, size_t contentLength);
 

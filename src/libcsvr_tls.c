@@ -52,12 +52,14 @@ bool csvrCheckRoot()
     }
 }
 
-csvrTlsServer_t* csvrTLSInit(uint16_t port)
+csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*privateKeyFile)
 {
     csvrTlsServer_t *tlsServer = NULL;
     tlsServer = calloc(1, sizeof(csvrTlsServer_t));
     if(tlsServer)
     {
+        // Initialize the SSL library
+        SSL_library_init();
         // SSL_METHOD *method;
         OpenSSL_add_all_algorithms();  /* load & register all cryptos, etc. */
         SSL_load_error_strings();   /* load all error messages */
@@ -68,8 +70,24 @@ csvrTlsServer_t* csvrTLSInit(uint16_t port)
             free(tlsServer);
             abort();
         }
-        csvrLoadCertificates(tlsServer->ctx, "certificate/libcsvr.pem", "certificate/libcsvr.pem");
+        csvrLoadCertificates(tlsServer->ctx, certificateKeyFile, privateKeyFile);
         tlsServer->server = csvrInit(port);
+        if(tlsServer->server == NULL)
+        {
+            SSL_CTX_free(tlsServer->ctx);
+            free(tlsServer);
+            return NULL;
+        }
+
+        /* 1. Listen to socket */
+        if (listen(tlsServer->server->sockfd, 5) != 0)
+        {
+            SSL_CTX_free(tlsServer->ctx);
+            csvrShutdown(tlsServer->server);
+            free(tlsServer);
+            return NULL;
+
+        }
     }
     return tlsServer;
 }
@@ -88,14 +106,14 @@ void csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile)
     /* set the local certificate from CertFile */
     if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
     {
-        // ERR_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         printf("Cannot use %s certificate file\n", CertFile);
         abort();
     }
     /* set the private key from KeyFile (may be the same as CertFile) */
     if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 )
     {
-        // ERR_print_errors_fp(stderr);
+        ERR_print_errors_fp(stderr);
         printf("Cannot use %s PrivateKey file\n", KeyFile);
         abort();
     }
@@ -129,45 +147,47 @@ void csvrShowCertificate(SSL* ssl)
     }
 }
 
-void Servlet(csvrTlsRequest_t*request)
+csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
 {
-    char buf[1024] = {0};
-    int  bytes;
-
-    if ( SSL_accept(request->ssl) == -1)     /* do SSL-protocol accept */
-    {
-        ERR_print_errors_fp(stderr);
-    }
-    else
-    {
-        csvrShowCertificate(request->ssl);        /* get any certificates */
-        bytes = SSL_read(request->ssl, buf, sizeof(buf)); /* get request */
-        buf[bytes] = '\0';
-        printf("Client msg: \"%s\"\n", buf);
-        if ( bytes > 0 )
-        {
-            request->content = strdup(buf);
-        }
-        else
-        {
-            ERR_print_errors_fp(stderr);
-        }
-    }
-}
-
-void csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
-{
+    csvrErrCode_e ret = 0;
     struct sockaddr_in addr;
     socklen_t len = sizeof(addr);
     int clientfd = -1;
     clientfd = accept(server->server->sockfd, (struct sockaddr*)&addr, &len);  /* accept connection as usual */
-    printf("Connection: %s:%d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+    memcpy(request->address, inet_ntoa(addr.sin_addr), sizeof(request->address));
+    request->port = ntohs(addr.sin_port);
+
     request->ssl = SSL_new(server->ctx);              /* get new SSL state with context */
     if(request->ssl)
     {
         SSL_set_fd(request->ssl, clientfd);      /* set connection socket to SSL state */
-        Servlet(request);
+        char buf[2048];
+        memset(buf, 0, sizeof(buf));
+        int  bytes;
+
+        if ( SSL_accept(request->ssl) == -1)     /* do SSL-protocol accept */
+        {
+            printf("Cannot accept ssl socket \"%s\"\n", strerror(errno));
+            ERR_print_errors_fp(stderr);
+        }
+        else
+        {
+            csvrShowCertificate(request->ssl);        /* get any certificates */
+            bytes = SSL_read(request->ssl, buf, sizeof(buf)); /* get request */
+            buf[bytes] = '\0';
+            if ( bytes > 0 )
+            {
+                request->content = strdup(buf);
+                ret = csvrSuccess;
+            }
+            else
+            {
+                ERR_print_errors_fp(stderr);
+                ret = csvrSystemFailure;
+            }
+        }
     }
+    return ret;
 }
 
 void csvrTlsSend(csvrTlsRequest_t* request, char *content, size_t contentLength)
