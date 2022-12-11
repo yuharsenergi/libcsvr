@@ -53,9 +53,6 @@ void *threadServer(void *arg)
         pthread_exit(NULL);
     }
 
-    // Initialize the SSL library
-    SSL_library_init();
-
     while(1)
     {
         csvrTlsRequest_t * request = NULL;
@@ -63,13 +60,20 @@ void *threadServer(void *arg)
         if(request == NULL) break;
 
         memset(request,0, sizeof(csvrTlsRequest_t));
-        csvrTlsRead(server, request);
-        printf("[ <<< ] %s\n",request->content);
-        char *response = "{\"status\":\"OK\"}";
-        csvrTlsSend(request, response, strlen(response));
-        printf("[ >>> ] %s\n",response);
+        if(csvrTlsRead(server, request) == csvrSuccess)
+        {
+            printf("[ <<< %s:%u] %s\n",request->address, request->port, request->content);
+            char *response = "{\"status\":\"OK\"}";
+            csvrTlsSend(request, response, strlen(response));
+            printf("[ >>> ] %s\n",response);
+        }
+        else
+        {
+            printf("Cannot read tls\n");
+        }
         csvrTlsReadFinish(request);
         free(request);
+        sleep(1);
     }
     pthread_cleanup_pop(0);
     pthread_exit(NULL);

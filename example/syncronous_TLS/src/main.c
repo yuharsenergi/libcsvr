@@ -29,7 +29,7 @@ static void signalCallback()
 int main(int arg,char**argv)
 {
     printf("%s-%s\n",EXAMPLE_NAME,EXAMPLE_VERSION);
-    if(arg < 2)
+    if(arg < 4)
     {
         printf("\n-- Please specify port --\n\n");
         printf("Usage :\n");
@@ -54,7 +54,7 @@ int main(int arg,char**argv)
         return 1;
     }
 
-    server = csvrTLSInit((uint16_t)port);
+    server = csvrTLSInit((uint16_t)port, argv[2], argv[3]);
     if(server == NULL)
     {
         printf("Failed initialize server at port:%u\n",port);
@@ -86,7 +86,7 @@ int main(int arg,char**argv)
         {
             break;
         }
-
+        server->server->path = NULL;
         if(!sem_wait(&semKill))
         {
             break;
