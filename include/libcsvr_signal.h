@@ -1,8 +1,7 @@
 /********************************************************************************
- * @file libcsvr_response.h
- * @ingroup libcsvr_response
+ * @file libcsvr_signal.h
  * @author Ergi (yuharsenergi@gmail.com)
- * @brief Collection functions of creating response payload for csvr
+ * @brief Collection functions of signal handling in csvr runtime
  * @version 0.1
  * @date 2022-12-06
  * 
@@ -26,24 +25,34 @@
  * SOFTWARE.
  * 
 ********************************************************************************/
-#ifndef LIBCSVR_RESPONSE_H
-#define LIBCSVR_RESPONSE_H
-
-#include "libcsvr.h"
+#ifndef LIBCSVR_SIGNAL_H
+#define LIBCSVR_SIGNAL_H
 
 /***************************************************************************************************************
- * @brief Function to create response payload based on given csvrHttpResponseCode_e
+ * @brief This function will initialize the sigaction to catch the SIGINT signal and SIGTERM signal during runtime process.
  * 
- * @param[out] dest pointer to char variable. This variable will be dynamically allocated and must be freed if
- *                  user already finished using the variable.
- * @param[in] request pointer to csvrRequest_t data structure which contains request type and path information.
- * @param[in] code the desired HTTP response code.
- * @return This function return one of the following value : 
- *          csvrInvalidInput,
- *          csvrNotAnError,
- *          csvrSystemFailure,
- *          csvrSuccess
+ * @return This function will return the result of sem_init process.
  ***************************************************************************************************************/
-csvrErrCode_e csvrResponseGenerateHTMLContent(char **dest, csvrRequest_t * request, csvrHttpResponseCode_e code);
+int csvrSignalInit();
 
+/***************************************************************************************************************
+ * @brief Function to catch the signal by waiting in the sem_wait function.
+ * 
+ * @return This function will return the result of sem_wait process.
+ ***************************************************************************************************************/
+int csvrSignalWait();
+
+/***************************************************************************************************************
+ * @brief This function will destroy the sem_t object that has been initialized by sem_init.
+ * 
+ * @return This function will return the result of sem_destroy process.
+ ***************************************************************************************************************/
+int csvrSignalDestroy();
+
+/***************************************************************************************************************
+ * @brief For unit testing purpose
+ ***************************************************************************************************************/
+#ifdef CSVR_UNIT_TEST
+void csvrSignalCallback();
+#endif
 #endif

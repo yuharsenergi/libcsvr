@@ -20,37 +20,37 @@
 
 #define PORT 9000
 
-static sem_t semKill;
-
-static void signalCallback()
-{
-    sem_post(&semKill);
-}
+static csvrServer_t * server = NULL;
 
 int main(int arg,char**argv)
 {
     printf("%s-%s\n",EXAMPLE_NAME,EXAMPLE_VERSION);
+    if(arg < 2)
+    {
+        printf("\n-- Please specify port --\n\n");
+        printf("Usage :\n");
+        printf("    %s [port]\n", argv[0]);
+        printf("Example :\n");
+        printf("    %s 8088\n\n", argv[0]);
+        return 1;
+    }
 
-    struct sigaction sigintHandler;
-    struct sigaction sigtermHandler;
+    int port = atoi(argv[1]);
+    if(port < 1024)
+    {
+        if(port == 0)
+        {
+            printf("\n-- port %s not valid ! --\n\n", argv[1]);
+        }
+        else
+        {
+            printf("\n-- Port %6s not valid ! --\n", argv[1]);
+            printf("-- Please use port > 1024. --\n\n");
+        }
+        return 1;
+    }
 
-    /* initialize semaphore */
-    sem_init(&semKill, 0, 0);
-
-    /* Signal handler for SIGINT */
-    memset(&sigintHandler, 0, sizeof(sigintHandler));
-    sigintHandler.sa_sigaction = &signalCallback;
-    sigintHandler.sa_flags = SA_SIGINFO;
-    sigaction(SIGINT, &sigintHandler, NULL);
-
-    /* Signal handler for SIGTERM */
-    memset(&sigtermHandler, 0, sizeof(sigtermHandler));
-    sigtermHandler.sa_sigaction = &signalCallback;
-    sigtermHandler.sa_flags = SA_SIGINFO;
-    sigaction(SIGTERM, &sigtermHandler, NULL);
-
-    csvrServer_t * server = NULL;
-    server = csvrInit(PORT);
+    server = csvrInit((uint16_t)port);
     if(server == NULL)
     {
         printf("Failed initialize server at port:%u\n",PORT);
@@ -75,13 +75,7 @@ int main(int arg,char**argv)
         return -1;
     }
 
-    while(1)
-    {
-        if (!sem_wait(&semKill))
-        {
-            break;
-        }
-    }
+    csvrJoin(server);
 
     csvrShutdown(server);
 
