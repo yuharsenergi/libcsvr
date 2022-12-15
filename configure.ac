@@ -10,7 +10,7 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT([libcsvr],[1.0],[yuharsenergi@gmail.com],,[https://github.com/yuharsenergi/libcsvr])
+AC_INIT([libcsvr],[1:0:0],[yuharsenergi@gmail.com],,[https://github.com/yuharsenergi/libcsvr])
 
 AC_PROG_CC
 
