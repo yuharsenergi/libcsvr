@@ -235,6 +235,7 @@ struct csvrPathUrl_t
     csvrRequestType_e type;
     char *name;
     void *(*callbackFunction) (csvrRequest_t *, void *);
+    void *userData;
     struct csvrPathUrl_t *next;
 };
 
@@ -250,11 +251,10 @@ csvrServer_t *csvrInit(uint16_t port);
 /************************************************************************************************************
  * @brief Function to start a new threads to handle incoming request.
  * 
- * @param[in] server Pointer to the csvrServer_t object which has been initialized using csvrInit. 
- * @param[in] userData 
+ * @param[in] server Pointer to the csvrServer_t object which has been initialized using csvrInit.
  * @return csvrErrCode_e 
  *************************************************************************************************************/
-csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData);
+csvrErrCode_e csvrServerStart(csvrServer_t *server);
 
 /************************************************************************************************************
  * @brief This function will wait for any termination signal which has been initialized by csvrSignalInit.
@@ -381,7 +381,9 @@ csvrErrCode_e csvrAddContent(csvrResponse_t*input, char *content,...);
  * @param[in] callbackFunction The callback function. All the pointer to the callback function wil be saved in
  *                             the csvrPathUrl_t->callbackFunction object. It only needs two argument:
  *                             (1) the pointer to csvrRequest_t structure, and
- *                             (2) the user object which will be saved in (void*) type pointer.
+ *                             (2) the user data object which will be saved in (void*) type pointer.
+ * @param[in] userData Pointer to the user callbackFunction argument data. This pointer will be given as 
+ *                     the input of the second argument in the callback function.
  * 
  * @return This function returns one of the following value : 
  *      csvrInvalidInput
@@ -389,7 +391,7 @@ csvrErrCode_e csvrAddContent(csvrResponse_t*input, char *content,...);
  *      csvrSystemFailure
  *      csvrSuccess
  *************************************************************************************************************/
-csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *));
+csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *), void *userData);
 
 /************************************************************************************************************
  * @brief Function to get current total client connection socket which is saved in the _totalConnectionNow variable.
