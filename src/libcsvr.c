@@ -73,7 +73,6 @@ static pthread_mutex_t _lockSearchPath = PTHREAD_MUTEX_INITIALIZER;
  ***************************************************************************************************************/
 typedef struct
 {
-    void *userData;
     csvrServer_t *server;
     csvrRequest_t *request;
 }csvrThreadsData_t;
@@ -600,7 +599,7 @@ CSVR_STATIC void *csvrProcessUserProcedureThreads(void *arg)
             if(path)
             {
                 printf("[%s %s] %s\n",_typeStringTranslator[data->request->type], data->request->clientAddress, data->request->path);
-                (*path->callbackFunction)(data->request, data->userData);
+                (*path->callbackFunction)(data->request, path->userData);
             }
             /* If path not found */
             else
@@ -736,7 +735,6 @@ CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
         /* save the pointer again here */
         userThreadsData->request  = request;
         userThreadsData->server   = threadsData->server;
-        userThreadsData->userData = threadsData->userData;
         int status = pthread_create(&threadClient, NULL, csvrProcessUserProcedureThreads, (void*)userThreadsData);
         /* If success, detach the threads */
         if(status == 0)
@@ -858,7 +856,7 @@ csvrErrCode_e csvrSetCustomServerName(csvrServer_t *server, char *serverName, ..
     return csvrSuccess;
 }
 
-csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
+csvrErrCode_e csvrServerStart(csvrServer_t *server)
 {
     if(server == NULL)
     {
@@ -871,7 +869,6 @@ csvrErrCode_e csvrServerStart(csvrServer_t *server, void *userData)
     threadsData = calloc(1, sizeof(csvrThreadsData_t));
     memset(threadsData, 0, sizeof(csvrThreadsData_t));
     threadsData->server = server;
-    threadsData->userData = userData;
 
     int status = pthread_create(&_serverThreads,NULL,csvrAsyncronousThreads,(void*)threadsData);
     if(status != 0)
@@ -1241,7 +1238,7 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     return csvrSuccess;
 }
 
-csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *))
+csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e type, void *(*callbackFunction)(csvrRequest_t *, void *), void*userData)
 {
     if(server == NULL || path == NULL || (*callbackFunction) == NULL)
     {
@@ -1280,8 +1277,9 @@ csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e ty
     newPath->type = type;
     newPath->name = strdup(path);
     newPath->callbackFunction = (*callbackFunction);
+    newPath->userData = userData;
     newPath->next = server->path;
-	server->path   = newPath;
+	server->path = newPath;
 
     return csvrSuccess;
 }
