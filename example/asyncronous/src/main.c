@@ -64,7 +64,7 @@ int main(int arg,char**argv)
         return 0;
     }
 
-    if(csvrServerStart(server, NULL) == csvrSuccess)
+    if(csvrServerStart(server) == csvrSuccess)
     {
         printf("Server is running\n");
     }
