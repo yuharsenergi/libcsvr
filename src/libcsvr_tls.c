@@ -63,7 +63,13 @@ csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*priva
         // SSL_METHOD *method;
         OpenSSL_add_all_algorithms();  /* load & register all cryptos, etc. */
         SSL_load_error_strings();   /* load all error messages */
+        
+        /* SSL Context */
+        #if OPENSSL_VERSION_NUMBER < 0x10100000L
+        tlsServer->ctx = SSL_CTX_new(SSLv23_server_method());   /* create new context from method */
+        #else
         tlsServer->ctx = SSL_CTX_new(TLS_server_method());   /* create new context from method */
+        #endif
         if (tlsServer->ctx == NULL )
         {
             printf("Cannot initialize SSL_CTX\n");
@@ -192,12 +198,6 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
 
 void csvrTlsSend(csvrTlsRequest_t* request, char *content, size_t contentLength)
 {
-    // const char* ServerResponse="<\Body>\
-    // <Name>aticleworld.com</Name>\
-    // <year>1.5</year>\
-    // <BlogType>Embedede and c\c++<\BlogType>\
-    // <Author>amlendra<Author>\
-    // <\Body>";
     SSL_write(request->ssl, content, contentLength); /* send reply */
 }
 
