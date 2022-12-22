@@ -1258,7 +1258,8 @@ csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e ty
         current = server->path;
         while(current)
         {
-            if(!memcmp(current->name, path, strlen(path)))
+            /* Check if the path and the type is exists */
+            if(!memcmp(current->name, path, strlen(path)) && current->type == type)
             {
                 return csvrUriAlreadyExists;
             }
