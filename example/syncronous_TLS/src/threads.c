@@ -64,7 +64,7 @@ void *threadServer(void *arg)
         {
             printf("[ <<< %s:%u] %s\n",request->address, request->port, request->content);
             char *response = "{\"status\":\"OK\"}";
-            csvrTlsSend(request, response, strlen(response));
+            csvrTlsSend(server, request, response, strlen(response));
             printf("[ >>> ] %s\n",response);
         }
         else
@@ -84,6 +84,7 @@ int initThreads(csvrTlsServer_t *server)
     int ret = -1;
     if(!csvrCheckRoot())
     {
+        printf("Application must be run as 'root'\n");
         return -1;
     }
     ret = pthread_create(&thrServer,NULL,threadServer,(void*)server);
