@@ -117,9 +117,9 @@ void *handlerRequest(csvrRequest_t *request, void *userData)
 
 int initializeServerPath(csvrServer_t *server)
 {
-    csvrAddPath(server, "/", csvrTypePost, handlerRequest);
-    csvrAddPath(server, "/time", csvrTypeGet, handlerTime);
-    csvrAddPath(server, "/uuid", csvrTypeGet, handlerGetUuid);
+    csvrAddPath(server, "/", csvrTypePost, handlerRequest, NULL);
+    csvrAddPath(server, "/time", csvrTypeGet, handlerTime, NULL);
+    csvrAddPath(server, "/uuid", csvrTypeGet, handlerGetUuid, NULL);
     printf("Initialize URI Path finished.\n");
     return 0;
 }
