@@ -49,7 +49,7 @@ void csvrTlsShutdown(csvrTlsServer_t *server);
 bool csvrCheckRoot();
 csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request);
 void csvrTlsReadFinish(csvrTlsRequest_t* request);
-void csvrTlsSend(csvrTlsRequest_t* request, char *content, size_t contentLength);
+csvrErrCode_e csvrTlsSend(csvrTlsServer_t *server, csvrTlsRequest_t* request, char *content, size_t contentLength);
 
 void csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile);
 void csvrShowCertificate(SSL* ssl);

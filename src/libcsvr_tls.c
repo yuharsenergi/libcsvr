@@ -196,9 +196,58 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
     return ret;
 }
 
-void csvrTlsSend(csvrTlsRequest_t* request, char *content, size_t contentLength)
+csvrErrCode_e csvrTlsSend(csvrTlsServer_t *server, csvrTlsRequest_t* request, char *content, size_t contentLength)
 {
-    SSL_write(request->ssl, content, contentLength); /* send reply */
+
+    if(request == NULL || content == NULL || contentLength == 0)
+    {
+        return csvrInvalidInput;
+    }
+
+    csvrErrCode_e ret = csvrSuccess;
+    char dtime[100];
+    memset(dtime,0,sizeof(dtime));
+    time_t now = time(0);
+    struct tm *tm = gmtime(&now);
+    strftime(dtime, sizeof(dtime), "%a, %d %b %Y %H:%M:%S %Z", tm);
+    
+    char *payload = NULL;
+    int retprint = -1;
+    retprint = asprintf(&payload,
+        "HTTP/1.1 200 OK\r\n"
+        "Server: %s\r\n"
+        "Accept-Ranges: none\r\n"
+        "Vary: Accept-Encoding\r\n"
+        "Last-Modified: %s\r\n"
+        "Connection: closed\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %lu\r\n"
+        "\r\n"
+        "%s", 
+        server->server->serverName,
+        dtime, 
+        contentLength,
+        content);
+
+    if(retprint == -1)
+    {
+        return csvrSystemFailure;
+    }
+
+    ssize_t sendStatus = 0;
+    sendStatus = SSL_write(request->ssl, payload, strlen(payload)); /* send reply */
+
+    if(sendStatus > 0)
+    {
+        ret = csvrSuccess;
+    }
+    else
+    {
+        ret = csvrFailedSendData;
+    }
+
+    CSVR_FREE(payload);
+    return ret;
 }
 
 void csvrTlsReadFinish(csvrTlsRequest_t* request)
