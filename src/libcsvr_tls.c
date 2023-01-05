@@ -38,7 +38,10 @@
 #include <openssl/err.h>
 
 #include "libcsvr.h"
+#include "libcsvr_internal.h"
 #include "libcsvr_tls.h"
+
+static char *csvrTlsConvertError(int error);
 
 bool csvrCheckRoot()
 {
@@ -183,7 +186,9 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
             buf[bytes] = '\0';
             if ( bytes > 0 )
             {
-                request->content = strdup(buf);
+                request->data.contentLength = getContentType(buf);
+                request->data.type = getRequestType(buf);
+                request->data.content = strdup(buf);
                 ret = csvrSuccess;
             }
             else
@@ -234,7 +239,7 @@ csvrErrCode_e csvrTlsSend(csvrTlsServer_t *server, csvrTlsRequest_t* request, ch
         return csvrSystemFailure;
     }
 
-    ssize_t sendStatus = 0;
+    int sendStatus = 0;
     sendStatus = SSL_write(request->ssl, payload, strlen(payload)); /* send reply */
 
     if(sendStatus > 0)
@@ -243,6 +248,18 @@ csvrErrCode_e csvrTlsSend(csvrTlsServer_t *server, csvrTlsRequest_t* request, ch
     }
     else
     {
+        int sslError = 0;
+        sslError = SSL_get_error(request->ssl, sendStatus);
+        printf("[DEBUG] Error send data: (%d) %s\n",sslError, csvrTlsConvertError(sslError));
+        if(ret == 0)
+        {
+            printf("[DEBUG] EOF was observed that violates the protocol.\n");
+        }
+        else if(ret == -1)
+        {
+            sslError = errno;
+            printf("[DEBUG] Errno (%d) %s\n",sslError, strerror(sslError));
+        }
         ret = csvrFailedSendData;
     }
 
@@ -254,9 +271,11 @@ void csvrTlsReadFinish(csvrTlsRequest_t* request)
 {
     int clientfd = -1;
     clientfd = SSL_get_fd(request->ssl);    /* get socket connection */
-    SSL_free(request->ssl);                 /* release SSL state */
-    if(request->content) free(request->content);
     close(clientfd);                        /* close connection */
+    SSL_free(request->ssl);                 /* release SSL state */
+    CSVR_FREE(request->data.content)
+    CSVR_FREE(request->data.message)
+    CSVR_FREE(request->data.header)
 }
 
 int csvrGenerateCertificate(char *name)
@@ -268,5 +287,35 @@ int csvrGenerateCertificate(char *name)
     {
         return ret;
     }
-    return system(cmd);;
+    return system(cmd);
+}
+
+static char *csvrTlsConvertError(int error)
+{
+    switch (error)
+    {
+    /* No error occured */
+    case SSL_ERROR_NONE:
+        return " ";
+    case SSL_ERROR_SSL:
+        return "SSL_ERROR_ZERO_RETURN";
+    case SSL_ERROR_WANT_READ:
+        return "SSL_ERROR_WANT_READ";
+    case SSL_ERROR_WANT_WRITE:
+        return "SSL_ERROR_WANT_WRITE";
+    case SSL_ERROR_ZERO_RETURN:
+        printf("[ERROR] Maybe the TLS/SSL connection has been closed.\n");
+        return "SSL_ERROR_ZERO_RETURN";
+    case SSL_ERROR_WANT_CONNECT:
+        return "SSL_ERROR_WANT_CONNECT";
+    case SSL_ERROR_WANT_ACCEPT:
+        return "SSL_ERROR_WANT_ACCEPT";
+    case SSL_ERROR_WANT_X509_LOOKUP:
+        return "SSL_ERROR_WANT_X509_LOOKUP";
+    case SSL_ERROR_SYSCALL:
+        return "";
+    default:
+        break;
+    }
+    return "SSL ERROR UNKNOWN";
 }

@@ -1,9 +1,9 @@
 /********************************************************************************
- * @file libcsvr_tls.h
+ * @file libcsvr_internal.h
  * @author Ergi (yuharsenergi@gmail.com)
  * @brief Collection functions of all the csvr main runtime functions with TLS
  * @version 0.1
- * @date 2022-12-11
+ * @date 2023-01-04
  * 
  * @copyright Copyright (c) 2022 Yuharsen Ergi
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,34 +25,14 @@
  * SOFTWARE.
  * 
 ********************************************************************************/
-#ifndef LIBCSV_TLS_H
-#define LIBCSV_TLS_H
+#ifndef LIBCSV_INTERNAL_H
+#define LIBCSV_INTERNAL_H
 
-#include <openssl/ssl.h>
-#include <openssl/err.h>
 #include "libcsvr.h"
-typedef struct
-{
-    csvrServer_t *server;
-    SSL_CTX* ctx;
-}csvrTlsServer_t;
 
-typedef struct{
-    SSL *ssl;
-    char address[30];
-    uint16_t port;
-    csvrRequest_t data;
-}csvrTlsRequest_t;
+csvrContentType_e getContentType(char*header);
+csvrRequestType_e getRequestType(char*header);
+int getContentLength(char*header, size_t headerLen);
 
-csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*privateKeyFile);
-void csvrTlsShutdown(csvrTlsServer_t *server);
-bool csvrCheckRoot();
-csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request);
-void csvrTlsReadFinish(csvrTlsRequest_t* request);
-csvrErrCode_e csvrTlsSend(csvrTlsServer_t *server, csvrTlsRequest_t* request, char *content, size_t contentLength);
-
-void csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile);
-void csvrShowCertificate(SSL* ssl);
-int csvrGenerateCertificate(char *name);
 
 #endif
