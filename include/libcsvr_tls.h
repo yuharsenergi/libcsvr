@@ -30,6 +30,11 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 #include "libcsvr.h"
 typedef struct
 {
@@ -55,4 +60,7 @@ void csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile);
 void csvrShowCertificate(SSL* ssl);
 int csvrGenerateCertificate(char *name);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

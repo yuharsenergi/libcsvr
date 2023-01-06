@@ -29,6 +29,11 @@
 #ifndef LIBCSVR_RESPONSE_H
 #define LIBCSVR_RESPONSE_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include "libcsvr.h"
 
 /***************************************************************************************************************
@@ -45,5 +50,9 @@
  *          csvrSuccess
  ***************************************************************************************************************/
 csvrErrCode_e csvrResponseGenerateHTMLContent(char **dest, csvrRequest_t * request, csvrHttpResponseCode_e code);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
