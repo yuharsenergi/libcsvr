@@ -27,6 +27,7 @@
 ********************************************************************************/
 #include <errno.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <malloc.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -79,6 +80,8 @@ csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*priva
             free(tlsServer);
             abort();
         }
+        printf("[DEBUG] Load certificate key : %s\n",certificateKeyFile);
+        printf("[DEBUG] Load private key     : %s\n",privateKeyFile);
         csvrLoadCertificates(tlsServer->ctx, certificateKeyFile, privateKeyFile);
         tlsServer->server = csvrInit(port);
         if(tlsServer->server == NULL)
@@ -158,6 +161,16 @@ void csvrShowCertificate(SSL* ssl)
 
 csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
 {
+    if(server == NULL || request == NULL)
+    {
+        return csvrInvalidInput;
+    }
+
+    if(server->server == NULL)
+    {
+        return csvrInvalidInput;
+    }
+
     csvrErrCode_e ret = 0;
     struct sockaddr_in addr;
     socklen_t len = sizeof(addr);
@@ -170,7 +183,7 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
     if(request->ssl)
     {
         SSL_set_fd(request->ssl, clientfd);      /* set connection socket to SSL state */
-        char buf[2048];
+        char buf[16000];
         memset(buf, 0, sizeof(buf));
         int  bytes;
 
@@ -182,14 +195,62 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
         else
         {
             csvrShowCertificate(request->ssl);        /* get any certificates */
-            bytes = SSL_read(request->ssl, buf, sizeof(buf)); /* get request */
+            bytes = SSL_read(request->ssl, buf, sizeof(buf) - 1); /* get request */
             buf[bytes] = '\0';
             if ( bytes > 0 )
             {
+                /* Initialize */
+                request->data.header  = NULL;
+                request->data.content = NULL;
+                request->data.message = NULL;
+
+                /* get the contentLength from the payload */
                 request->data.contentLength = getContentType(buf);
+                /* get the request type from the payload */
                 request->data.type = getRequestType(buf);
+
+                /* Get the full payload (header + body (if any)) */
                 request->data.content = strdup(buf);
-                ret = csvrSuccess;
+                if(request->data.content == NULL)
+                {
+                    return csvrSystemFailure;
+                }
+
+                /* Get the header payload only */
+                int sizeHeader = bytes - request->data.contentLength + 1;
+                char *header = malloc(sizeHeader*sizeof(char));
+                if(header == NULL)
+                {
+                    CSVR_FREE(request->data.content);
+                    return csvrSystemFailure;
+                }
+                else
+                {
+                    memset(header, 0, sizeHeader);
+                    memcpy(header, buf, sizeHeader - 1);
+                    header[sizeHeader] = '\0';
+                    /* save the pointer here */
+                    request->data.header = header;
+                    ret = csvrSuccess;
+                }
+
+                /* Get the header payload only */
+                char *body = malloc((request->data.contentLength + 1)*sizeof(char));
+                if(body == NULL)
+                {
+                    CSVR_FREE(request->data.content);
+                    CSVR_FREE(request->data.header);
+                    return csvrSystemFailure;
+                }
+                else
+                {
+                    memset(body, 0, request->data.contentLength + 1);
+                    memcpy(body, buf + (sizeHeader - 1), request->data.contentLength);
+                    body[request->data.contentLength + 1] = '\0';
+                    /* save the pointer here */
+                    request->data.message = body;
+                    ret = csvrSuccess;
+                }
             }
             else
             {
