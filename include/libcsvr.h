@@ -141,8 +141,9 @@ typedef enum{
 typedef enum{
     noContentType   = 0,        /**< If no content-type key not found in the incoming header request payload. Usually it comes from a not POST request. */
     applicationJson = 1,        /**< If the content-type of the incoming body request payload is "application/json". Usually it comes from a POST request, or to set application/json content-type in the response payload. */
-    textHtml        = 2,        /**< If the content-type of the incoming body request payload is "text/html". Usually it comes from a POST request, or to set text/html content-type in the response payload */
-    textPlain       = 3,        /**< If the content-type of the incoming body request payload is "text/plain". Usually it comes from a POST request, or to set text/plain content-type in the response payload */
+    applicationJs   = 2,        /**< If the content-type of the incoming body request payload is "application/javascript". Usually it comes from a POST request, or to set application/javascript content-type in the response payload. */
+    textHtml        = 3,        /**< If the content-type of the incoming body request payload is "text/html". Usually it comes from a POST request, or to set text/html content-type in the response payload */
+    textPlain       = 4,        /**< If the content-type of the incoming body request payload is "text/plain". Usually it comes from a POST request, or to set text/plain content-type in the response payload */
     maxContentType
 }csvrContentType_e;
 

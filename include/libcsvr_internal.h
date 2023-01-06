@@ -35,10 +35,10 @@ extern "C"
 
 #include "libcsvr.h"
 
-csvrContentType_e getContentType(char*header);
+csvrContentType_e csvrGetContentType(char*header);
 csvrRequestType_e getRequestType(char*header);
-int getContentLength(char*header, size_t headerLen);
-int getHeaderFromPayload(char **output, char*payload, size_t payloadLen);
+int csvrGetContentLength(char*header, size_t headerLen);
+int csvrGetHeaderFromPayload(char **output, char*payload, size_t payloadLen);
 
 #ifdef __cplusplus
 }

@@ -50,8 +50,6 @@
 
 #define HEADER_CONTENT_LENGTH_KEY "Content-Length: "
 #define HEADER_CONTENT_TYPE_KEY   "Content-Type: "
-#define HEADER_SEPARATOR          "\x0D\x0A"
-#define BODY_SEPARATOR            "\x0D\x0A\x0D\x0A"
 #define DEFAULT_MESSAGE_ALLOCATION 3
 #define DEFAULT_SERVER_NAME       CSVR_NAME"-"CSVR_VERSION
 
@@ -147,7 +145,7 @@ csvrRequestType_e getRequestType(char*header)
     return type;
 }
 
-int getContentLength(char*header, size_t headerLen)
+int csvrGetContentLength(char*header, size_t headerLen)
 {
     if(header == NULL)
     {
@@ -162,7 +160,7 @@ int getContentLength(char*header, size_t headerLen)
     while(index < headerLen)
     {
         /* Get 0x0D 0x0A */
-        if(!memcmp(header+index, HEADER_SEPARATOR, strlen(HEADER_SEPARATOR)))
+        if(!memcmp(header+index, CSVR_HEADER_SEPARATOR, strlen(CSVR_HEADER_SEPARATOR)))
         {
             size_t lengthLine = index - lastIndex;
             line = calloc((lengthLine + 1), sizeof(char));
@@ -179,7 +177,7 @@ int getContentLength(char*header, size_t headerLen)
                 }
                 CSVR_FREE(line);
             }
-            lastIndex = index + strlen(HEADER_SEPARATOR);
+            lastIndex = index + strlen(CSVR_HEADER_SEPARATOR);
         }
         index++;
     }
@@ -187,7 +185,38 @@ int getContentLength(char*header, size_t headerLen)
     return contentLength;
 }
 
-csvrContentType_e getContentType(char*header)
+int csvrGetHeaderFromPayload(char **output, char*payload, size_t payloadLen)
+{
+    if(output == NULL || payload == NULL || payloadLen == 0)
+    {
+        return 0;
+    }
+
+    char *header = NULL;
+    int index = 0;
+    int headerLength = 0;
+
+    while(index < payloadLen)
+    {
+        /* Get 0x0D 0x0A 0x0D 0x0A */
+        if(!memcmp(payload+index, CSVR_BODY_SEPARATOR, strlen(CSVR_BODY_SEPARATOR)))
+        {
+            headerLength = index + strlen(CSVR_BODY_SEPARATOR);
+            header = calloc((headerLength + 1), sizeof(char));
+            if(header)
+            {
+                memset(header, 0, (headerLength + 1));
+                memcpy(header, payload, headerLength);
+            }
+            break;
+        }
+        index++;
+    }
+    *output = header;
+    return headerLength;
+}
+
+csvrContentType_e csvrGetContentType(char*header)
 {
     if(header == NULL)
     {
@@ -203,7 +232,7 @@ csvrContentType_e getContentType(char*header)
     while(index < headerLen)
     {
         /* Get 0x0D 0x0A */
-        if(!memcmp(header+index, HEADER_SEPARATOR, strlen(HEADER_SEPARATOR)))
+        if(!memcmp(header+index, CSVR_HEADER_SEPARATOR, strlen(CSVR_HEADER_SEPARATOR)))
         {
             size_t lengthLine = index - lastIndex;
             line = calloc((lengthLine + 1), sizeof(char));
@@ -226,15 +255,23 @@ csvrContentType_e getContentType(char*header)
                     {
                         contentType = applicationJson;
                     }
+                    else if(!memcmp(buffer, "application/javascript", strlen("application/javascript")))
+                    {
+                        contentType = applicationJson;
+                    }
                     else if(!memcmp(buffer, "text/html", strlen("text/html")))
                     {
                         contentType = textHtml;
+                    }
+                    else if(!memcmp(buffer, "text/plain", strlen("text/plain")))
+                    {
+                        contentType = textPlain;
                     }
                     break;
                 }
                 CSVR_FREE(line);
             }
-            lastIndex = index + strlen(HEADER_SEPARATOR);
+            lastIndex = index + strlen(CSVR_HEADER_SEPARATOR);
         }
         index++;
     }
@@ -259,7 +296,7 @@ CSVR_STATIC csvrErrCode_e getHeaderKeyValue(char*header, char*key, char *dest, s
     while(index < headerLen)
     {
         /* Get 0x0D 0x0A */
-        if(!memcmp(header+index, HEADER_SEPARATOR, strlen(HEADER_SEPARATOR)))
+        if(!memcmp(header+index, CSVR_HEADER_SEPARATOR, strlen(CSVR_HEADER_SEPARATOR)))
         {
             size_t lengthLine = index - lastIndex;
             line = calloc((lengthLine + 1), sizeof(char));
@@ -277,7 +314,7 @@ CSVR_STATIC csvrErrCode_e getHeaderKeyValue(char*header, char*key, char *dest, s
                 }
                 CSVR_FREE(line);
             }
-            lastIndex = index + strlen(HEADER_SEPARATOR);
+            lastIndex = index + strlen(CSVR_HEADER_SEPARATOR);
         }
         index++;
     }
@@ -346,7 +383,7 @@ CSVR_STATIC csvrHttpVersion_e getHttpVersion(char*header)
     ptr1 = strstr(header, "HTTP/");
     if(ptr1)
     {
-        ptr2 = strstr(ptr1, HEADER_SEPARATOR);
+        ptr2 = strstr(ptr1, CSVR_HEADER_SEPARATOR);
         len = (size_t)(ptr2 - ptr1);
         char *res = (char*)malloc(sizeof(char)*(len+1));
         if(res)
@@ -445,7 +482,7 @@ CSVR_STATIC csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
         message     = realloc(message, (size_t)(DEFAULT_MESSAGE_ALLOCATION+lenMessage));
 
         /* Finish read header */
-        if(!memcmp(message + lenMessage - strlen(BODY_SEPARATOR), BODY_SEPARATOR, strlen(BODY_SEPARATOR)))
+        if(!memcmp(message + lenMessage - strlen(CSVR_BODY_SEPARATOR), CSVR_BODY_SEPARATOR, strlen(CSVR_BODY_SEPARATOR)))
         {
             output->header = calloc(lenMessage + 1, sizeof(char));
             memset(output->header, 0, lenMessage + 1);
@@ -468,8 +505,8 @@ CSVR_STATIC csvrErrCode_e  csvrClientReader(csvrRequest_t *output)
                 {
                     flagReadBody            = true;
                     indexBody               = lenMessage;
-                    output->contentType     = getContentType(output->header);
-                    contentLength           = getContentLength(output->header, lenMessage);
+                    output->contentType     = csvrGetContentType(output->header);
+                    contentLength           = csvrGetContentLength(output->header, lenMessage);
                     output->contentLength   = contentLength;
                     if(output->contentLength == 0)
                     {
@@ -634,18 +671,6 @@ CSVR_STATIC void *csvrProcessUserProcedureThreads(void *arg)
 
 CSVR_STATIC void csvrAsyncronousThreadsCleanUp(void *arg)
 {
-    #if 0
-    csvrThreadsData_t *data = (csvrThreadsData_t *)arg;
-    if(data)
-    {
-        if(data->request)
-        {
-            csvrReadFinish(data->request, NULL);
-            free(data->request);
-        }
-        free(data);
-    }
-    #else
     if(arg)
     {
         if(((csvrThreadsData_t *)arg)->request)
@@ -655,7 +680,6 @@ CSVR_STATIC void csvrAsyncronousThreadsCleanUp(void *arg)
         }
         CSVR_FREE(arg);
     }
-    #endif
 }
 
 CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
@@ -760,7 +784,7 @@ CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
         /** why the threads still not able to get the threadsData pointer inside csvrProcessUserProcedureThreads threads
          *  if this sleep not exists.
          */
-        usleep(200000);
+        USLEEP(200000);
 
     }
     threadsData->server->asyncFlag = false;
@@ -817,7 +841,8 @@ csvrServer_t *csvrInit(uint16_t port)
         }
         printf("[DEBUG] Try %d binding socket failed: ", tryTimes);CSVR_PRINT_ERRNO();
         tryTimes++;
-        sleep(1);
+        /* Delay 1 second */
+        USLEEP(1000000);
     }
 
     memset(server->serverName, 0, sizeof(server->serverName));
@@ -1199,7 +1224,7 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value)
     }
 
     char *buffer = NULL;
-    int retprint = asprintf(&buffer,"%s: %s%s",key,value,HEADER_SEPARATOR);
+    int retprint = asprintf(&buffer,"%s: %s%s",key,value,CSVR_HEADER_SEPARATOR);
     if(retprint == -1)
     {
         return csvrSystemFailure;

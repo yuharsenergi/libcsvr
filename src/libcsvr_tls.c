@@ -204,11 +204,6 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
                 request->data.content = NULL;
                 request->data.message = NULL;
 
-                /* get the contentLength from the payload */
-                request->data.contentLength = getContentType(buf);
-                /* get the request type from the payload */
-                request->data.type = getRequestType(buf);
-
                 /* Get the full payload (header + body (if any)) */
                 request->data.content = strdup(buf);
                 if(request->data.content == NULL)
@@ -217,40 +212,50 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
                 }
 
                 /* Get the header payload only */
-                int sizeHeader = bytes - request->data.contentLength + 1;
-                char *header = malloc(sizeHeader*sizeof(char));
+                char *header = NULL;
+                int headerSize = csvrGetHeaderFromPayload(&header, buf, bytes);
                 if(header == NULL)
                 {
                     CSVR_FREE(request->data.content);
                     return csvrSystemFailure;
                 }
-                else
+                /* save the header pointer here */
+                request->data.header = header;
+
+                /* get the contentLength from the payload */
+                request->data.contentLength = csvrGetContentLength(request->data.header, strlen(request->data.header));
+                /* If no content-length in the header, the count manually */
+                if(request->data.contentLength == 0)
                 {
-                    memset(header, 0, sizeHeader);
-                    memcpy(header, buf, sizeHeader - 1);
-                    header[sizeHeader] = '\0';
-                    /* save the pointer here */
-                    request->data.header = header;
-                    ret = csvrSuccess;
+                    request->data.contentLength = bytes - headerSize;
                 }
 
-                /* Get the header payload only */
-                char *body = malloc((request->data.contentLength + 1)*sizeof(char));
-                if(body == NULL)
+                /* get the request type from the payload */
+                request->data.type = getRequestType(buf);
+                request->data.contentType = csvrGetContentType(header);
+
+                /* Get the body payload only */
+                char *body = NULL;
+                if(request->data.type == csvrTypePost)
                 {
-                    CSVR_FREE(request->data.content);
-                    CSVR_FREE(request->data.header);
-                    return csvrSystemFailure;
+                    int contentLength = request->data.contentLength + 1;
+                    body = malloc(contentLength*sizeof(char));
+                    if(body == NULL)
+                    {
+                        CSVR_FREE(request->data.content);
+                        CSVR_FREE(request->data.header);
+                        return csvrSystemFailure;
+                    }
+                    else
+                    {
+                        memset(body, 0, contentLength);
+                        memcpy(body, buf + headerSize, contentLength - 1);
+                        body[contentLength] = '\0';
+                        ret = csvrSuccess;
+                    }
                 }
-                else
-                {
-                    memset(body, 0, request->data.contentLength + 1);
-                    memcpy(body, buf + (sizeHeader - 1), request->data.contentLength);
-                    body[request->data.contentLength + 1] = '\0';
-                    /* save the pointer here */
-                    request->data.message = body;
-                    ret = csvrSuccess;
-                }
+                /* save the pointer here */
+                request->data.message = body;
             }
             else
             {
