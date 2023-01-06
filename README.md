@@ -24,10 +24,19 @@ $ make install
 ```
 
 ## Linking Guide
+You can check the linking example in the example `Makefile.am` file here:
+* [Asyncronous Makefile.am](./example/asyncronous/src/Makefile.am)
+* [Syncronous Makefile.am](./example/syncronous/src/Makefile.am)
+* [Syncronous with TLS Makefile.am](./example/syncronous/src/Makefile.am)
 
-You can check the example in the example `Makefile.am` file here:
-* [Asyncronous example](./example/asyncronous/src/Makefile.am)
-* [Syncronous example](./example/syncronous/src/Makefile.am)
+## How to Use
+You can check the example in the example below, all sources are provided in the `src` directory:
+* [Asyncronous](./example/asyncronous/src/)
+* [Syncronous](./example/syncronous/src/)
+* [Syncronous with TLS](./example/syncronous/src/)
 
+## WIKI Page
+
+[libcsvr WIKI](https://github.com/yuharsenergi/libcsvr/wiki)
 ***
 © Ergi, 2022
