@@ -28,11 +28,20 @@
 #ifndef LIBCSV_INTERNAL_H
 #define LIBCSV_INTERNAL_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include "libcsvr.h"
 
-csvrContentType_e getContentType(char*header);
+csvrContentType_e csvrGetContentType(char*header);
 csvrRequestType_e getRequestType(char*header);
-int getContentLength(char*header, size_t headerLen);
+int csvrGetContentLength(char*header, size_t headerLen);
+int csvrGetHeaderFromPayload(char **output, char*payload, size_t payloadLen);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -67,7 +67,7 @@ void *handlerGetUuid(csvrRequest_t *request, void *userData)
     long total = csvrGetTotalConnection();
     csvrAddContent(&response, "{\"id\":%d,\"totalConnection\":%ld,\"uuid\":\"%s\"}",session++, total, uuid);
     FREE(uuid);
-    sleep(1);
+    
     csvrSendResponse(request, &response);
     printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);

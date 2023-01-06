@@ -28,6 +28,11 @@
 #ifndef LIBCSVR_H
 #define LIBCSVR_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,6 +47,9 @@
 #define CSVR_FREE(ptr) if(ptr != NULL) {free(ptr);ptr = NULL;}
 /** Macro helper to print the errno information. */
 #define CSVR_PRINT_ERRNO() {printf("errno : (%d) %s\n", errno,strerror(errno));}
+
+#define CSVR_HEADER_SEPARATOR          "\x0D\x0A"
+#define CSVR_BODY_SEPARATOR            "\x0D\x0A\x0D\x0A"
 
 /** Macro helper to determine the environment information. */
 #ifdef CSVR_UNIT_TEST
@@ -58,6 +66,19 @@
 #include <sys/time.h>
 #ifdef __linux__
 #include <arpa/inet.h>
+#endif
+
+#ifdef MSDOS
+#include <dos.h>
+#endif
+
+/* Macro helper for SLEEP */
+#if defined(MSDOS)
+    #define USLEEP(ms) {delay(ms);}
+#elif defined(WIN32)
+    #define USLEEP(ms) {Sleep(ms);}
+#else
+    #define USLEEP(ms) {usleep(ms);}
 #endif
 
 /***************************************************************************************************************
@@ -120,7 +141,9 @@ typedef enum{
 typedef enum{
     noContentType   = 0,        /**< If no content-type key not found in the incoming header request payload. Usually it comes from a not POST request. */
     applicationJson = 1,        /**< If the content-type of the incoming body request payload is "application/json". Usually it comes from a POST request, or to set application/json content-type in the response payload. */
-    textHtml        = 2,        /**< If the content-type of the incoming body request payload is "text/html". Usually it comes from a POST request, or to set text/html content-type in the response payload */
+    applicationJs   = 2,        /**< If the content-type of the incoming body request payload is "application/javascript". Usually it comes from a POST request, or to set application/javascript content-type in the response payload. */
+    textHtml        = 3,        /**< If the content-type of the incoming body request payload is "text/html". Usually it comes from a POST request, or to set text/html content-type in the response payload */
+    textPlain       = 4,        /**< If the content-type of the incoming body request payload is "text/plain". Usually it comes from a POST request, or to set text/plain content-type in the response payload */
     maxContentType
 }csvrContentType_e;
 
@@ -401,4 +424,7 @@ csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e ty
  *************************************************************************************************************/
 long csvrGetTotalConnection();
 
+#ifdef __cplusplus
+}
+#endif
 #endif

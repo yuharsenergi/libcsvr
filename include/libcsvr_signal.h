@@ -28,6 +28,11 @@
 #ifndef LIBCSVR_SIGNAL_H
 #define LIBCSVR_SIGNAL_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 /***************************************************************************************************************
  * @brief This function will initialize the sigaction to catch the SIGINT signal and SIGTERM signal during runtime process.
  * 
@@ -55,4 +60,9 @@ int csvrSignalDestroy();
 #ifdef CSVR_UNIT_TEST
 void csvrSignalCallback();
 #endif
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

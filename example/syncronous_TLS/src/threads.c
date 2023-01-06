@@ -64,10 +64,31 @@ void *threadServer(void *arg)
         memset(request,0, sizeof(csvrTlsRequest_t));
         if(csvrTlsRead(server, request) == csvrSuccess)
         {
-            printf("[ <<< %s:%u] %s\n",request->address, request->port, request->data.message);
-            char *response = "{\"status\":\"OK\"}";
+            printf("[ <<< %s:%u] %s\n",request->address, request->port, request->data.message ? request->data.message : "");
+            char *response = NULL;
+            if(request->data.type == csvrTypePost)
+            {
+                asprintf(&response, "{"
+                    "\"status\":\"OK\","
+                    "\"type\":%d,"
+                    "\"message\":\"%s\""
+                "}", 
+                request->data.type,
+                request->data.message
+                );
+            }
+            else
+            {
+                asprintf(&response, "{"
+                    "\"status\":\"OK\","
+                    "\"type\":%d,"
+                    "\"message\":\"Hello!\""
+                "}", 
+                request->data.type);
+            }
             csvrTlsSend(server, request, response, strlen(response));
             printf("[ >>> ] %s\n",response);
+            free(response);
         }
         else
         {
@@ -75,7 +96,6 @@ void *threadServer(void *arg)
         }
         csvrTlsReadFinish(request);
         free(request);
-        sleep(1);
     }
     pthread_cleanup_pop(0);
     pthread_exit(NULL);
