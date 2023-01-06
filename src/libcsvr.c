@@ -121,7 +121,7 @@ CSVR_STATIC void csvrDecreaseConnectionCounter()
     pthread_mutex_unlock(&_lockCount);
 }
 
-CSVR_STATIC csvrRequestType_e getRequestType(char*header)
+csvrRequestType_e getRequestType(char*header)
 {
     csvrRequestType_e type = csvrTypeUnknwon;
     if(!memcmp("POST", header, 4))
@@ -147,7 +147,7 @@ CSVR_STATIC csvrRequestType_e getRequestType(char*header)
     return type;
 }
 
-CSVR_STATIC int getContentLength(char*header, size_t headerLen)
+int getContentLength(char*header, size_t headerLen)
 {
     if(header == NULL)
     {
@@ -187,7 +187,7 @@ CSVR_STATIC int getContentLength(char*header, size_t headerLen)
     return contentLength;
 }
 
-CSVR_STATIC csvrContentType_e getContentType(char*header)
+csvrContentType_e getContentType(char*header)
 {
     if(header == NULL)
     {

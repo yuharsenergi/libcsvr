@@ -53,6 +53,8 @@ void *threadServer(void *arg)
         pthread_exit(NULL);
     }
 
+    printf("[DEBUG] Server is listening...\n");
+
     while(1)
     {
         csvrTlsRequest_t * request = NULL;
@@ -62,9 +64,9 @@ void *threadServer(void *arg)
         memset(request,0, sizeof(csvrTlsRequest_t));
         if(csvrTlsRead(server, request) == csvrSuccess)
         {
-            printf("[ <<< %s:%u] %s\n",request->address, request->port, request->content);
+            printf("[ <<< %s:%u] %s\n",request->address, request->port, request->data.message);
             char *response = "{\"status\":\"OK\"}";
-            csvrTlsSend(request, response, strlen(response));
+            csvrTlsSend(server, request, response, strlen(response));
             printf("[ >>> ] %s\n",response);
         }
         else
@@ -84,6 +86,7 @@ int initThreads(csvrTlsServer_t *server)
     int ret = -1;
     if(!csvrCheckRoot())
     {
+        printf("Application must be run as 'root'\n");
         return -1;
     }
     ret = pthread_create(&thrServer,NULL,threadServer,(void*)server);

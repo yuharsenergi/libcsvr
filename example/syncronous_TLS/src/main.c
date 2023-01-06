@@ -31,11 +31,22 @@ int main(int arg,char**argv)
     printf("%s-%s\n",EXAMPLE_NAME,EXAMPLE_VERSION);
     if(arg < 4)
     {
-        printf("\n-- Please specify port --\n\n");
+        switch(arg)
+        {
+            case 1:
+            printf("\n-- Please specify port --\n\n");
+            break;
+            case 2:
+            printf("\n-- Please specify certificate key file --\n\n");
+            break;
+            case 3:
+            printf("\n-- Please specify private key file --\n\n");
+            break;
+        }
         printf("Usage :\n");
-        printf("    %s [port]\n", argv[0]);
+        printf("    %s [port] [certificate key file] [privat key file]\n", argv[0]);
         printf("Example :\n");
-        printf("    %s 8088\n\n", argv[0]);
+        printf("    %s 8088 example.pem example.key\n\n", argv[0]);
         return 1;
     }
 

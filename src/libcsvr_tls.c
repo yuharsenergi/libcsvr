@@ -27,6 +27,7 @@
 ********************************************************************************/
 #include <errno.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <malloc.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -38,7 +39,10 @@
 #include <openssl/err.h>
 
 #include "libcsvr.h"
+#include "libcsvr_internal.h"
 #include "libcsvr_tls.h"
+
+static char *csvrTlsConvertError(int error);
 
 bool csvrCheckRoot()
 {
@@ -76,6 +80,8 @@ csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*priva
             free(tlsServer);
             abort();
         }
+        printf("[DEBUG] Load certificate key : %s\n",certificateKeyFile);
+        printf("[DEBUG] Load private key     : %s\n",privateKeyFile);
         csvrLoadCertificates(tlsServer->ctx, certificateKeyFile, privateKeyFile);
         tlsServer->server = csvrInit(port);
         if(tlsServer->server == NULL)
@@ -155,6 +161,16 @@ void csvrShowCertificate(SSL* ssl)
 
 csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
 {
+    if(server == NULL || request == NULL)
+    {
+        return csvrInvalidInput;
+    }
+
+    if(server->server == NULL)
+    {
+        return csvrInvalidInput;
+    }
+
     csvrErrCode_e ret = 0;
     struct sockaddr_in addr;
     socklen_t len = sizeof(addr);
@@ -167,7 +183,7 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
     if(request->ssl)
     {
         SSL_set_fd(request->ssl, clientfd);      /* set connection socket to SSL state */
-        char buf[2048];
+        char buf[16000];
         memset(buf, 0, sizeof(buf));
         int  bytes;
 
@@ -179,12 +195,62 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
         else
         {
             csvrShowCertificate(request->ssl);        /* get any certificates */
-            bytes = SSL_read(request->ssl, buf, sizeof(buf)); /* get request */
+            bytes = SSL_read(request->ssl, buf, sizeof(buf) - 1); /* get request */
             buf[bytes] = '\0';
             if ( bytes > 0 )
             {
-                request->content = strdup(buf);
-                ret = csvrSuccess;
+                /* Initialize */
+                request->data.header  = NULL;
+                request->data.content = NULL;
+                request->data.message = NULL;
+
+                /* get the contentLength from the payload */
+                request->data.contentLength = getContentType(buf);
+                /* get the request type from the payload */
+                request->data.type = getRequestType(buf);
+
+                /* Get the full payload (header + body (if any)) */
+                request->data.content = strdup(buf);
+                if(request->data.content == NULL)
+                {
+                    return csvrSystemFailure;
+                }
+
+                /* Get the header payload only */
+                int sizeHeader = bytes - request->data.contentLength + 1;
+                char *header = malloc(sizeHeader*sizeof(char));
+                if(header == NULL)
+                {
+                    CSVR_FREE(request->data.content);
+                    return csvrSystemFailure;
+                }
+                else
+                {
+                    memset(header, 0, sizeHeader);
+                    memcpy(header, buf, sizeHeader - 1);
+                    header[sizeHeader] = '\0';
+                    /* save the pointer here */
+                    request->data.header = header;
+                    ret = csvrSuccess;
+                }
+
+                /* Get the header payload only */
+                char *body = malloc((request->data.contentLength + 1)*sizeof(char));
+                if(body == NULL)
+                {
+                    CSVR_FREE(request->data.content);
+                    CSVR_FREE(request->data.header);
+                    return csvrSystemFailure;
+                }
+                else
+                {
+                    memset(body, 0, request->data.contentLength + 1);
+                    memcpy(body, buf + (sizeHeader - 1), request->data.contentLength);
+                    body[request->data.contentLength + 1] = '\0';
+                    /* save the pointer here */
+                    request->data.message = body;
+                    ret = csvrSuccess;
+                }
             }
             else
             {
@@ -196,18 +262,86 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
     return ret;
 }
 
-void csvrTlsSend(csvrTlsRequest_t* request, char *content, size_t contentLength)
+csvrErrCode_e csvrTlsSend(csvrTlsServer_t *server, csvrTlsRequest_t* request, char *content, size_t contentLength)
 {
-    SSL_write(request->ssl, content, contentLength); /* send reply */
+
+    if(server == NULL || request == NULL || content == NULL || contentLength == 0)
+    {
+        return csvrInvalidInput;
+    }
+
+    if(server->server == NULL)
+    {
+        return csvrInvalidInput;
+    }
+
+    csvrErrCode_e ret = csvrSuccess;
+    char dtime[100];
+    memset(dtime,0,sizeof(dtime));
+    time_t now = time(0);
+    struct tm *tm = gmtime(&now);
+    strftime(dtime, sizeof(dtime), "%a, %d %b %Y %H:%M:%S %Z", tm);
+    
+    char *payload = NULL;
+    int retprint = -1;
+    retprint = asprintf(&payload,
+        "HTTP/1.1 200 OK\r\n"
+        "Server: %s\r\n"
+        "Accept-Ranges: none\r\n"
+        "Vary: Accept-Encoding\r\n"
+        "Last-Modified: %s\r\n"
+        "Connection: closed\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %lu\r\n"
+        "\r\n"
+        "%s", 
+        server->server->serverName,
+        dtime, 
+        contentLength,
+        content);
+
+    if(retprint == -1)
+    {
+        return csvrSystemFailure;
+    }
+
+    int sendStatus = 0;
+    sendStatus = SSL_write(request->ssl, payload, strlen(payload)); /* send reply */
+
+    if(sendStatus > 0)
+    {
+        ret = csvrSuccess;
+    }
+    else
+    {
+        int sslError = 0;
+        sslError = SSL_get_error(request->ssl, sendStatus);
+        printf("[DEBUG] Error send data: (%d) %s\n",sslError, csvrTlsConvertError(sslError));
+        if(ret == 0)
+        {
+            printf("[DEBUG] EOF was observed that violates the protocol.\n");
+        }
+        else if(ret == -1)
+        {
+            sslError = errno;
+            printf("[DEBUG] Errno (%d) %s\n",sslError, strerror(sslError));
+        }
+        ret = csvrFailedSendData;
+    }
+
+    CSVR_FREE(payload);
+    return ret;
 }
 
 void csvrTlsReadFinish(csvrTlsRequest_t* request)
 {
     int clientfd = -1;
     clientfd = SSL_get_fd(request->ssl);    /* get socket connection */
-    SSL_free(request->ssl);                 /* release SSL state */
-    if(request->content) free(request->content);
     close(clientfd);                        /* close connection */
+    SSL_free(request->ssl);                 /* release SSL state */
+    CSVR_FREE(request->data.content)
+    CSVR_FREE(request->data.message)
+    CSVR_FREE(request->data.header)
 }
 
 int csvrGenerateCertificate(char *name)
@@ -219,5 +353,35 @@ int csvrGenerateCertificate(char *name)
     {
         return ret;
     }
-    return system(cmd);;
+    return system(cmd);
+}
+
+static char *csvrTlsConvertError(int error)
+{
+    switch (error)
+    {
+    /* No error occured */
+    case SSL_ERROR_NONE:
+        return " ";
+    case SSL_ERROR_SSL:
+        return "SSL_ERROR_ZERO_RETURN";
+    case SSL_ERROR_WANT_READ:
+        return "SSL_ERROR_WANT_READ";
+    case SSL_ERROR_WANT_WRITE:
+        return "SSL_ERROR_WANT_WRITE";
+    case SSL_ERROR_ZERO_RETURN:
+        printf("[ERROR] Maybe the TLS/SSL connection has been closed.\n");
+        return "SSL_ERROR_ZERO_RETURN";
+    case SSL_ERROR_WANT_CONNECT:
+        return "SSL_ERROR_WANT_CONNECT";
+    case SSL_ERROR_WANT_ACCEPT:
+        return "SSL_ERROR_WANT_ACCEPT";
+    case SSL_ERROR_WANT_X509_LOOKUP:
+        return "SSL_ERROR_WANT_X509_LOOKUP";
+    case SSL_ERROR_SYSCALL:
+        return "";
+    default:
+        break;
+    }
+    return "SSL ERROR UNKNOWN";
 }
