@@ -53,6 +53,8 @@ void *threadServer(void *arg)
         pthread_exit(NULL);
     }
 
+    printf("[DEBUG] Server is listening...\n");
+
     while(1)
     {
         csvrTlsRequest_t * request = NULL;
@@ -62,7 +64,7 @@ void *threadServer(void *arg)
         memset(request,0, sizeof(csvrTlsRequest_t));
         if(csvrTlsRead(server, request) == csvrSuccess)
         {
-            printf("[ <<< %s:%u] %s\n",request->address, request->port, request->content);
+            printf("[ <<< %s:%u] %s\n",request->address, request->port, request->data.message);
             char *response = "{\"status\":\"OK\"}";
             csvrTlsSend(server, request, response, strlen(response));
             printf("[ >>> ] %s\n",response);
