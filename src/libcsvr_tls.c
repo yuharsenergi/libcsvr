@@ -204,7 +204,12 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
 csvrErrCode_e csvrTlsSend(csvrTlsServer_t *server, csvrTlsRequest_t* request, char *content, size_t contentLength)
 {
 
-    if(request == NULL || content == NULL || contentLength == 0)
+    if(server == NULL || request == NULL || content == NULL || contentLength == 0)
+    {
+        return csvrInvalidInput;
+    }
+
+    if(server->server == NULL)
     {
         return csvrInvalidInput;
     }
