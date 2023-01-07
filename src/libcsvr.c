@@ -716,14 +716,6 @@ CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
 
         memset(request,0,sizeof(csvrRequest_t));
         memcpy(request->serverName, threadsData->server->serverName, sizeof(request->serverName) - 1);
-        /* 1. Listen to socket */
-        if (listen(threadsData->server->sockfd, _totalConnectionAllowed) != 0)
-        {
-            printf("[INFO] Failed listen socket: %s\n", strerror(errno));
-            pthread_mutex_unlock(&lockThreads);
-            CSVR_FREE(request);
-            break;
-        }
 
         struct sockaddr_in client;  
         memset(&client,0,sizeof(struct sockaddr_in));
@@ -843,6 +835,15 @@ csvrServer_t *csvrInit(uint16_t port)
         tryTimes++;
         /* Delay 1 second */
         USLEEP(1000000);
+    }
+
+    /**< 4. Listen to the newly bindd socket *///
+    if (listen(server->sockfd, _totalConnectionAllowed) != 0)
+    {
+        printf("[ERROR] Failed listen socket: %s\n", strerror(errno));
+        close(server->sockfd);
+        free(server);
+        return NULL;
     }
 
     memset(server->serverName, 0, sizeof(server->serverName));
@@ -1058,13 +1059,6 @@ csvrErrCode_e csvrRead(csvrServer_t *server, csvrRequest_t *output)
     pthread_mutex_lock(&_lockRead);
     do
     {
-        /* 1. Listen to socket */
-        if (listen(server->sockfd, _totalConnectionAllowed) != 0)
-        {
-            ret = csvrCannotListenSocket;
-            break;
-        }
-
         struct sockaddr_in client;  
         memset(&client,0,sizeof(struct sockaddr_in));
 
@@ -1305,8 +1299,9 @@ csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e ty
     newPath->callbackFunction = (*callbackFunction);
     newPath->userData = userData;
     newPath->next = server->path;
-	server->path = newPath;
+    server->path = newPath;
 
+    printf("[DEBUG] Initializing path '%s' with '%s' type success\n", newPath->name, _typeStringTranslator[newPath->type]);
     return csvrSuccess;
 }
 
