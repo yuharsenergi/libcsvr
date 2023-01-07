@@ -104,6 +104,8 @@ int main(int arg,char**argv)
         }
     }while(0);
 
+    shutdownThreads();
+
     csvrTlsShutdown(server);
 
     sem_destroy(&semKill);

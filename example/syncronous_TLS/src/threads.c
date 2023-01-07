@@ -13,6 +13,7 @@
 
 static pthread_t thrServer;
 bool isRunning = false;
+bool exitSignal = false;
 
 void shutdownThreads(void);
 void joinThreads(void);
@@ -40,7 +41,6 @@ void threadsCallback(void *arg)
 void *threadServer(void *arg)
 {
     csvrTlsServer_t *server = (csvrTlsServer_t*)arg;
-    isRunning = true;
     cbHandler_t* data = NULL;
     data = calloc(1, sizeof(cbHandler_t));
     if(data == NULL)
@@ -54,6 +54,7 @@ void *threadServer(void *arg)
     }
 
     printf("[DEBUG] Server is listening...\n");
+    isRunning = true;
 
     int retprint = 0;
     while(1)
@@ -107,6 +108,7 @@ void *threadServer(void *arg)
         }
         else
         {
+            if(exitSignal) break;
             printf("Cannot read socket TLS\n");
         }
         csvrTlsReadFinish(request);
@@ -140,6 +142,7 @@ void joinThreads(void)
 
 void shutdownThreads(void)
 {
+    exitSignal = true;
     if(isRunning)
     {
         pthread_cancel(thrServer);
