@@ -76,7 +76,7 @@ csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*priva
         #endif
         if (tlsServer->ctx == NULL )
         {
-            printf("Cannot initialize SSL_CTX\n");
+            printf("[ERROR] Cannot initialize SSL_CTX\n");
             free(tlsServer);
             abort();
         }
@@ -119,43 +119,48 @@ void csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile)
     if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
     {
         ERR_print_errors_fp(stderr);
-        printf("Cannot use %s certificate file\n", CertFile);
+        printf("[ERROR] Cannot use %s certificate file\n", CertFile);
         abort();
     }
     /* set the private key from KeyFile (may be the same as CertFile) */
     if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 )
     {
         ERR_print_errors_fp(stderr);
-        printf("Cannot use %s PrivateKey file\n", KeyFile);
+        printf("[ERROR] Cannot use %s PrivateKey file\n", KeyFile);
         abort();
     }
     /* verify private key */
     if ( !SSL_CTX_check_private_key(ctx) )
     {
-        printf("Private key does not match the public certificate\n");
+        printf("[ERROR] Private key does not match the public certificate\n");
         abort();
     }
 }
 
 void csvrShowCertificate(SSL* ssl)
 {
-    X509 *cert;
-    char *line;
+    if(ssl == NULL) return;
+
+    X509 *cert = NULL;
+    char *line = NULL;
     cert = SSL_get_peer_certificate(ssl); /* Get certificates (if available) */
     if ( cert != NULL )
     {
-        printf("Server certificates:\n");
+        printf("[INFO] Server certificates:\n");
+
         line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
-        printf("Subject: %s\n", line);
-        free(line);
+        printf("[INFO] Client certificate Subject: %s\n", line ? line : "null");
+        CSVR_FREE(line);
+
         line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
-        printf("Issuer: %s\n", line);
-        free(line);
+        printf("[INFO] Client certificate Issuer: %s\n", line ? line : "null");
+        CSVR_FREE(line);
+
         X509_free(cert);
     }
     else
     {
-        printf("No certificates.\n");
+        printf("[DEBUG] No client certificate provided.\n");
     }
 }
 
