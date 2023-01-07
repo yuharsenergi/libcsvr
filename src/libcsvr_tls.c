@@ -76,13 +76,20 @@ csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*priva
         #endif
         if (tlsServer->ctx == NULL )
         {
-            printf("Cannot initialize SSL_CTX\n");
+            printf("[ERROR] Cannot initialize SSL_CTX\n");
             free(tlsServer);
-            abort();
+            return NULL;
         }
-        printf("[DEBUG] Load certificate key : %s\n",certificateKeyFile);
-        printf("[DEBUG] Load private key     : %s\n",privateKeyFile);
-        csvrLoadCertificates(tlsServer->ctx, certificateKeyFile, privateKeyFile);
+
+        if(csvrLoadCertificates(tlsServer->ctx, certificateKeyFile, privateKeyFile) != csvrSuccess)
+        {
+            free(tlsServer);
+            return NULL;
+        }
+
+        printf("[DEBUG] Load certificate key success : %s\n",certificateKeyFile);
+        printf("[DEBUG] Load private key success     : %s\n",privateKeyFile);
+        
         tlsServer->server = csvrInit(port);
         if(tlsServer->server == NULL)
         {
@@ -98,7 +105,6 @@ csvrTlsServer_t* csvrTLSInit(uint16_t port, char *certificateKeyFile, char*priva
             csvrShutdown(tlsServer->server);
             free(tlsServer);
             return NULL;
-
         }
     }
     return tlsServer;
@@ -113,49 +119,53 @@ void csvrTlsShutdown(csvrTlsServer_t *server)
     }
 }
 
-void csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile)
+csvrErrCode_e csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile)
 {
     /* set the local certificate from CertFile */
     if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
     {
         ERR_print_errors_fp(stderr);
-        printf("Cannot use %s certificate file\n", CertFile);
-        abort();
+        printf("[ERROR] Cannot use %s certificate file\n", CertFile);
+        return csvrSystemFailure;
     }
     /* set the private key from KeyFile (may be the same as CertFile) */
     if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 )
     {
         ERR_print_errors_fp(stderr);
-        printf("Cannot use %s PrivateKey file\n", KeyFile);
-        abort();
+        printf("[ERROR] Cannot use %s PrivateKey file\n", KeyFile);
+        return csvrSystemFailure;
     }
     /* verify private key */
     if ( !SSL_CTX_check_private_key(ctx) )
     {
-        printf("Private key does not match the public certificate\n");
-        abort();
+        printf("[ERROR] Private key does not match the public certificate\n");
+        return csvrSystemFailure;
     }
+    return csvrSuccess;
 }
 
 void csvrShowCertificate(SSL* ssl)
 {
-    X509 *cert;
-    char *line;
+    if(ssl == NULL) return;
+
+    X509 *cert = NULL;
+    char *line = NULL;
     cert = SSL_get_peer_certificate(ssl); /* Get certificates (if available) */
     if ( cert != NULL )
     {
-        printf("Server certificates:\n");
         line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
-        printf("Subject: %s\n", line);
-        free(line);
+        printf("[INFO] Client certificate name: %s\n", line ? line : "null");
+        CSVR_FREE(line);
+
         line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
-        printf("Issuer: %s\n", line);
-        free(line);
+        printf("[INFO] Client certificate Issuer: %s\n", line ? line : "null");
+        CSVR_FREE(line);
+
         X509_free(cert);
     }
     else
     {
-        printf("No certificates.\n");
+        printf("[DEBUG] No client certificate provided.\n");
     }
 }
 
@@ -189,7 +199,7 @@ csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request)
 
         if ( SSL_accept(request->ssl) == -1)     /* do SSL-protocol accept */
         {
-            printf("Cannot accept ssl socket \"%s\"\n", strerror(errno));
+            printf("[ERROR] Cannot accept ssl socket \"%s\"\n", errno ? strerror(errno) : "");
             ERR_print_errors_fp(stderr);
         }
         else

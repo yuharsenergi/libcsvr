@@ -13,6 +13,7 @@
 
 static pthread_t thrServer;
 bool isRunning = false;
+bool exitSignal = false;
 
 void shutdownThreads(void);
 void joinThreads(void);
@@ -40,7 +41,6 @@ void threadsCallback(void *arg)
 void *threadServer(void *arg)
 {
     csvrTlsServer_t *server = (csvrTlsServer_t*)arg;
-    isRunning = true;
     cbHandler_t* data = NULL;
     data = calloc(1, sizeof(cbHandler_t));
     if(data == NULL)
@@ -54,7 +54,9 @@ void *threadServer(void *arg)
     }
 
     printf("[DEBUG] Server is listening...\n");
+    isRunning = true;
 
+    int retprint = 0;
     while(1)
     {
         csvrTlsRequest_t * request = NULL;
@@ -68,7 +70,7 @@ void *threadServer(void *arg)
             char *response = NULL;
             if(request->data.type == csvrTypePost)
             {
-                asprintf(&response, "{"
+                retprint = asprintf(&response, "{"
                     "\"status\":\"OK\","
                     "\"type\":%d,"
                     "\"message\":\"%s\""
@@ -76,15 +78,29 @@ void *threadServer(void *arg)
                 request->data.type,
                 request->data.message
                 );
+                
+                if(retprint == -1)
+                {
+                    csvrTlsReadFinish(request);
+                    free(request);
+                    continue;
+                }
             }
             else
             {
-                asprintf(&response, "{"
+                retprint = asprintf(&response, "{"
                     "\"status\":\"OK\","
                     "\"type\":%d,"
                     "\"message\":\"Hello!\""
                 "}", 
                 request->data.type);
+
+                if(retprint == -1)
+                {
+                    csvrTlsReadFinish(request);
+                    free(request);
+                    continue;
+                }
             }
             csvrTlsSend(server, request, response, strlen(response));
             printf("[ >>> ] %s\n",response);
@@ -92,7 +108,8 @@ void *threadServer(void *arg)
         }
         else
         {
-            printf("Cannot read tls\n");
+            if(exitSignal) break;
+            printf("Cannot read socket TLS\n");
         }
         csvrTlsReadFinish(request);
         free(request);
@@ -125,6 +142,7 @@ void joinThreads(void)
 
 void shutdownThreads(void)
 {
+    exitSignal = true;
     if(isRunning)
     {
         pthread_cancel(thrServer);

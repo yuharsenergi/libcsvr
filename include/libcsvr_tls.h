@@ -55,8 +55,8 @@ bool csvrCheckRoot();
 csvrErrCode_e csvrTlsRead(csvrTlsServer_t* server, csvrTlsRequest_t*request);
 void csvrTlsReadFinish(csvrTlsRequest_t* request);
 csvrErrCode_e csvrTlsSend(csvrTlsServer_t *server, csvrTlsRequest_t* request, char *content, size_t contentLength);
+csvrErrCode_e csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile);
 
-void csvrLoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile);
 void csvrShowCertificate(SSL* ssl);
 int csvrGenerateCertificate(char *name);
 
