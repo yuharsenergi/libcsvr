@@ -212,15 +212,15 @@ typedef struct{
  ***************************************************************************************************************/
 typedef struct
 {
-    csvrRequestType_e type;
-    csvrContentType_e contentType;
-    csvrHttpVersion_e httpVersion;
+    csvrRequestType_e type; /* The HTTP request type. e.g. GET, POST, PUT, DELETE, etc. */
+    csvrContentType_e contentType;  /* The body content type. */
+    csvrHttpVersion_e httpVersion;  /* The incoming HTTP version */
     csvrConnectionType_e connectionType;
-    int clientfd;
-    int contentLength;
-    char clientAddress[INET_ADDRSTRLEN];
-    char host[100];
-    char path[100];
+    int clientfd;           /* the client socket descriptor. */
+    int contentLength;      /* the header content-length */
+    char clientAddress[INET_ADDRSTRLEN];    /* the client IPv4 address */
+    char host[100];         /* The host name of the client */
+    char path[100];         /* The incoming request path */
     char serverName[100];   /* The copied server name */
     char *message;      /* Full data header + body (if any) */
     char *header;       /* The header data only */
