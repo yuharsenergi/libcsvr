@@ -55,6 +55,7 @@ void *threadServer(void *arg)
 
     printf("[DEBUG] Server is listening...\n");
 
+    int retprint = 0;
     while(1)
     {
         csvrTlsRequest_t * request = NULL;
@@ -68,7 +69,7 @@ void *threadServer(void *arg)
             char *response = NULL;
             if(request->data.type == csvrTypePost)
             {
-                asprintf(&response, "{"
+                retprint = asprintf(&response, "{"
                     "\"status\":\"OK\","
                     "\"type\":%d,"
                     "\"message\":\"%s\""
@@ -76,15 +77,29 @@ void *threadServer(void *arg)
                 request->data.type,
                 request->data.message
                 );
+                
+                if(retprint == -1)
+                {
+                    csvrTlsReadFinish(request);
+                    free(request);
+                    continue;
+                }
             }
             else
             {
-                asprintf(&response, "{"
+                retprint = asprintf(&response, "{"
                     "\"status\":\"OK\","
                     "\"type\":%d,"
                     "\"message\":\"Hello!\""
                 "}", 
                 request->data.type);
+
+                if(retprint == -1)
+                {
+                    csvrTlsReadFinish(request);
+                    free(request);
+                    continue;
+                }
             }
             csvrTlsSend(server, request, response, strlen(response));
             printf("[ >>> ] %s\n",response);
@@ -92,7 +107,7 @@ void *threadServer(void *arg)
         }
         else
         {
-            printf("Cannot read tls\n");
+            printf("Cannot read socket TLS\n");
         }
         csvrTlsReadFinish(request);
         free(request);
