@@ -106,7 +106,14 @@ void *handlerRequest(csvrRequest_t *request, void *userData)
     printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path,request->content ? request->content : "");
     csvrResponse_t response;
     CLEARSTRUCT(response);
-    csvrAddContent(&response, "{\"id\":%d,\"request\":%s}", session,request->content ? request->content : "\"\"");
+    if(request->type == csvrTypePost)
+    {
+        csvrAddContent(&response, "{\"id\":%d,\"request\":%s}", session,request->content ? request->content : "\"\"");
+    }
+    else
+    {
+        csvrAddContent(&response, "{\"status\":\"ok\"}");
+    }
 
     csvrSendResponse(request, &response);
     printf("[ >>> ] %s\n",response.body);
@@ -118,6 +125,7 @@ void *handlerRequest(csvrRequest_t *request, void *userData)
 int initializeServerPath(csvrServer_t *server)
 {
     csvrAddPath(server, "/", csvrTypePost, handlerRequest, NULL);
+    csvrAddPath(server, "/", csvrTypeGet, handlerRequest, NULL);
     csvrAddPath(server, "/time", csvrTypeGet, handlerTime, NULL);
     csvrAddPath(server, "/uuid", csvrTypeGet, handlerGetUuid, NULL);
     printf("Initialize URI Path finished.\n");
