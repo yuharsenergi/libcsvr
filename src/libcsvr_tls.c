@@ -35,6 +35,8 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <resolv.h>
+
+#ifdef WITH_TLS
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
@@ -400,3 +402,4 @@ static char *csvrTlsConvertError(int error)
     }
     return "SSL ERROR UNKNOWN";
 }
+#endif //end WITH_TLS
