@@ -48,8 +48,9 @@
 #define PACKAGE_VERSION CSVR_VERSION
 #endif
 
-#define HEADER_CONTENT_LENGTH_KEY "Content-Length: "
-#define HEADER_CONTENT_TYPE_KEY   "Content-Type: "
+/* don't care about the case. set all to lower cases */
+#define HEADER_CONTENT_LENGTH_KEY "content-length: "
+#define HEADER_CONTENT_TYPE_KEY   "content-type: "
 #define DEFAULT_MESSAGE_ALLOCATION 3
 #define DEFAULT_SERVER_NAME       CSVR_NAME"-"CSVR_VERSION
 
@@ -145,6 +146,17 @@ csvrRequestType_e getRequestType(char*header)
     return type;
 }
 
+static void csvrConvertLowerCase(char*data, size_t length)
+{
+    size_t index = 0;
+    while(index < length)
+    {
+        char temp = tolower(data[index]);
+        data[index] = temp;
+        index++;
+    }
+}
+
 int csvrGetContentLength(char*header, size_t headerLen)
 {
     if(header == NULL)
@@ -168,6 +180,7 @@ int csvrGetContentLength(char*header, size_t headerLen)
             {
                 memset(line, 0, (lengthLine + 1));
                 memcpy(line, header + lastIndex, lengthLine);
+                csvrConvertLowerCase(line, lengthLine);
                 if(!memcmp(line,HEADER_CONTENT_LENGTH_KEY, strlen(HEADER_CONTENT_LENGTH_KEY)))
                 {
                     memset(buffer, 0, sizeof(buffer));
@@ -240,6 +253,7 @@ csvrContentType_e csvrGetContentType(char*header)
             {
                 memset(line, 0, (lengthLine + 1));
                 memcpy(line, header + lastIndex, lengthLine);
+                csvrConvertLowerCase(line, lengthLine);
                 if(!memcmp(line,HEADER_CONTENT_TYPE_KEY, strlen(HEADER_CONTENT_TYPE_KEY)))
                 {
                     memset(buffer, 0, sizeof(buffer));
