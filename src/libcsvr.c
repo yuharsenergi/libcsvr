@@ -229,6 +229,18 @@ int csvrGetHeaderFromPayload(char **output, char*payload, size_t payloadLen)
     return headerLength;
 }
 
+CSVR_STATIC char *contentTypeTranslator(csvrContentType_e contentType)
+{
+    switch(contentType){
+        case applicationJson: return "application/json";
+        case applicationJs: return "application/js";
+        case textHtml: return "text/html";
+        case textPlain: return "text/plain";
+        default: break;
+    }
+    return "text/plain";
+}
+
 csvrContentType_e csvrGetContentType(char*header)
 {
     if(header == NULL)
@@ -951,12 +963,13 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
         "Vary: Accept-Encoding\r\n"
         "Last-Modified: %s\r\n"
         "Connection: closed\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %lu\r\n"
         "\r\n"
         "%s", 
         request->serverName,
-        dtime, 
+        dtime,
+        (response->contentType) ? contentTypeTranslator(response->contentType) : "text/plain",
         strlen(response->body),
         response->body);
 
@@ -1319,7 +1332,7 @@ csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e ty
     return csvrSuccess;
 }
 
-csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
+csvrErrCode_e csvrAddContent(csvrResponse_t *input, csvrContentType_e contentType, char *content, ...)
 {
     if(input == NULL || content == NULL)
     {
@@ -1343,6 +1356,10 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
         CSVR_FREE(bodyTemp);
         return csvrSystemFailure;
     }
+
+    /* Set the content-type enumeration here */
+    input->contentType = contentType;
+
     CSVR_FREE(bodyTemp);
     return csvrSuccess;
 }
