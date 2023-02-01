@@ -235,6 +235,7 @@ typedef struct{
     csvrHeader_t header;
     csvrContentType_e contentType;
     char *body;
+    size_t contentLength;
 }csvrResponse_t;
 
 /***************************************************************************************************************

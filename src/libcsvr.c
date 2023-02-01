@@ -1363,3 +1363,52 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, csvrContentType_e contentTyp
     CSVR_FREE(bodyTemp);
     return csvrSuccess;
 }
+
+csvrErrCode_e csvrAddContentFromFile(csvrResponse_t *input, csvrContentType_e contentType, char *arg, ...)
+{
+    if(input == NULL || arg == NULL)
+    {
+        return csvrInvalidInput;
+    }
+
+    char * path = NULL;
+    va_list aptr;
+    va_start(aptr, arg);
+    int ret = vasprintf(&path, arg, aptr);
+    va_end(aptr);
+    if(ret == -1)
+    {
+        return csvrSystemFailure;
+    }
+
+    FILE* fp = NULL;
+    fp = fopen(path, "r");
+    if(fp == NULL)
+    {
+        return csvrSystemFailure;
+    }
+
+    int c = 0;
+    CSVR_FREE(input->body);
+
+    char * temp = NULL;
+    size_t length = 0;
+    temp = calloc(2, sizeof(char));
+    while((c = getc(fp)) != EOF)
+    {
+        temp[length] = c;
+        temp = realloc(temp, (length + 2) * sizeof(char));
+        length++;
+    }
+
+    input->body = temp;
+    input->contentLength = length;
+    input->contentType = contentType;
+
+    fclose(fp);
+    fp = NULL;
+
+    CSVR_FREE(path);
+
+    return csvrSuccess;
+}
