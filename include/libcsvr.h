@@ -42,7 +42,7 @@ extern "C"
 /** The csvr signature name *///
 #define CSVR_NAME    "libcsvr"
 /** The current csvr version *///
-#define CSVR_VERSION "1.0"
+#define CSVR_VERSION "1.0.1"
 /** Macro helper to free pointer memory. */
 #define CSVR_FREE(ptr) if(ptr != NULL) {free(ptr);ptr = NULL;}
 /** Macro helper to print the errno information. */
