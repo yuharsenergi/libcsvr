@@ -42,7 +42,7 @@ extern "C"
 /** The csvr signature name *///
 #define CSVR_NAME    "libcsvr"
 /** The current csvr version *///
-#define CSVR_VERSION "1.0"
+#define CSVR_VERSION "1.0.1"
 /** Macro helper to free pointer memory. */
 #define CSVR_FREE(ptr) if(ptr != NULL) {free(ptr);ptr = NULL;}
 /** Macro helper to print the errno information. */
@@ -233,7 +233,9 @@ typedef struct
  ***************************************************************************************************************/
 typedef struct{
     csvrHeader_t header;
+    csvrContentType_e contentType;
     char *body;
+    size_t contentLength;
 }csvrResponse_t;
 
 /***************************************************************************************************************
@@ -385,6 +387,7 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value);
  * @brief Function to add content payload to the response body.
  * 
  * @param[in,out] input The user pointer to csvrResponse_t object.
+ * @param[in] contentType The body payload content type.
  * @param[in] content The user body payload. This input accept valist type.
  *
  * @return This function returns one of the following value : 
@@ -393,7 +396,7 @@ csvrErrCode_e csvrAddCustomHeader(csvrResponse_t*input, char *key, char*value);
  *      csvrSystemFailure
  *      csvrSuccess
  *************************************************************************************************************/
-csvrErrCode_e csvrAddContent(csvrResponse_t*input, char *content,...);
+csvrErrCode_e csvrAddContent(csvrResponse_t*input, csvrContentType_e contentType, char *content,...);
 
 /************************************************************************************************************
  * @brief Function to add API request
