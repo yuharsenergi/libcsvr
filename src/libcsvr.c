@@ -935,6 +935,44 @@ csvrErrCode_e csvrServerStart(csvrServer_t *server)
     return csvrSuccess;
 }
 
+CSVR_STATIC char *csvrSetUserCustomHeader(csvrResponse_t *response)
+{
+    char *result = NULL;
+    int index = 0;
+    int retprint = -1;
+    while(index < response->header.total)
+    {
+        if(index == 0)
+        {
+            retprint = asprintf(&result,"%s",response->header.data[index]);
+            if(retprint == -1)
+            {
+                return NULL;
+            }
+        }
+        else
+        {
+            char * temp = NULL;
+            retprint = asprintf(&temp,"%s%s",result, response->header.data[index]);
+            CSVR_FREE(result)
+            if(retprint == -1)
+            {
+                return NULL;
+            }
+
+            /* Allocate the new appended header */
+            retprint = asprintf(&result,"%s",temp);
+            CSVR_FREE(temp);
+            if(retprint == -1)
+            {
+                return NULL;
+            }
+        }
+        index++;
+    }
+    return result;
+}
+
 csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response)
 {
     if(request == NULL || response == NULL)
@@ -954,6 +992,10 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
     struct tm *tm = gmtime(&now);
     strftime(dtime, sizeof(dtime), "%a, %d %b %Y %H:%M:%S %Z", tm);
     
+    /* Set the custom user header */
+    char *additionalHeader = NULL;
+    additionalHeader = csvrSetUserCustomHeader(response);
+
     char *payload = NULL;
     int retprint = -1;
     retprint = asprintf(&payload,
@@ -965,13 +1007,16 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
         "Connection: closed\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %lu\r\n"
+        "%s"    // set the custom header
         "\r\n"
         "%s", 
         request->serverName,
         dtime,
         (response->contentType) ? contentTypeTranslator(response->contentType) : "text/plain",
         strlen(response->body),
+        additionalHeader ? additionalHeader : "",
         response->body);
+    CSVR_FREE(additionalHeader)
 
     if(retprint == -1)
     {
