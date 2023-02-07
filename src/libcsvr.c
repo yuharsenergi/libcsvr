@@ -229,6 +229,18 @@ int csvrGetHeaderFromPayload(char **output, char*payload, size_t payloadLen)
     return headerLength;
 }
 
+CSVR_STATIC char *contentTypeTranslator(csvrContentType_e contentType)
+{
+    switch(contentType){
+        case applicationJson: return "application/json";
+        case applicationJs: return "application/js";
+        case textHtml: return "text/html";
+        case textPlain: return "text/plain";
+        default: break;
+    }
+    return "text/plain";
+}
+
 csvrContentType_e csvrGetContentType(char*header)
 {
     if(header == NULL)
@@ -923,6 +935,44 @@ csvrErrCode_e csvrServerStart(csvrServer_t *server)
     return csvrSuccess;
 }
 
+CSVR_STATIC char *csvrSetUserCustomHeader(csvrResponse_t *response)
+{
+    char *result = NULL;
+    int index = 0;
+    int retprint = -1;
+    while(index < response->header.total)
+    {
+        if(index == 0)
+        {
+            retprint = asprintf(&result,"%s",response->header.data[index]);
+            if(retprint == -1)
+            {
+                return NULL;
+            }
+        }
+        else
+        {
+            char * temp = NULL;
+            retprint = asprintf(&temp,"%s%s",result, response->header.data[index]);
+            CSVR_FREE(result)
+            if(retprint == -1)
+            {
+                return NULL;
+            }
+
+            /* Allocate the new appended header */
+            retprint = asprintf(&result,"%s",temp);
+            CSVR_FREE(temp);
+            if(retprint == -1)
+            {
+                return NULL;
+            }
+        }
+        index++;
+    }
+    return result;
+}
+
 csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response)
 {
     if(request == NULL || response == NULL)
@@ -942,6 +992,10 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
     struct tm *tm = gmtime(&now);
     strftime(dtime, sizeof(dtime), "%a, %d %b %Y %H:%M:%S %Z", tm);
     
+    /* Set the custom user header */
+    char *additionalHeader = NULL;
+    additionalHeader = csvrSetUserCustomHeader(response);
+
     char *payload = NULL;
     int retprint = -1;
     retprint = asprintf(&payload,
@@ -951,14 +1005,18 @@ csvrErrCode_e csvrSendResponse(csvrRequest_t * request, csvrResponse_t *response
         "Vary: Accept-Encoding\r\n"
         "Last-Modified: %s\r\n"
         "Connection: closed\r\n"
-        "Content-Type: application/json\r\n"
+        "Content-Type: %s\r\n"
         "Content-Length: %lu\r\n"
+        "%s"    // set the custom header
         "\r\n"
         "%s", 
         request->serverName,
-        dtime, 
+        dtime,
+        (response->contentType) ? contentTypeTranslator(response->contentType) : "text/plain",
         strlen(response->body),
+        additionalHeader ? additionalHeader : "",
         response->body);
+    CSVR_FREE(additionalHeader)
 
     if(retprint == -1)
     {
@@ -1319,7 +1377,7 @@ csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e ty
     return csvrSuccess;
 }
 
-csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
+csvrErrCode_e csvrAddContent(csvrResponse_t *input, csvrContentType_e contentType, char *content, ...)
 {
     if(input == NULL || content == NULL)
     {
@@ -1343,6 +1401,59 @@ csvrErrCode_e csvrAddContent(csvrResponse_t *input, char *content, ...)
         CSVR_FREE(bodyTemp);
         return csvrSystemFailure;
     }
+
+    /* Set the content-type enumeration here */
+    input->contentType = contentType;
+
     CSVR_FREE(bodyTemp);
+    return csvrSuccess;
+}
+
+csvrErrCode_e csvrAddContentFromFile(csvrResponse_t *input, csvrContentType_e contentType, char *arg, ...)
+{
+    if(input == NULL || arg == NULL)
+    {
+        return csvrInvalidInput;
+    }
+
+    char * path = NULL;
+    va_list aptr;
+    va_start(aptr, arg);
+    int ret = vasprintf(&path, arg, aptr);
+    va_end(aptr);
+    if(ret == -1)
+    {
+        return csvrSystemFailure;
+    }
+
+    FILE* fp = NULL;
+    fp = fopen(path, "r");
+    if(fp == NULL)
+    {
+        return csvrSystemFailure;
+    }
+
+    int c = 0;
+    CSVR_FREE(input->body);
+
+    char * temp = NULL;
+    size_t length = 0;
+    temp = calloc(2, sizeof(char));
+    while((c = getc(fp)) != EOF)
+    {
+        temp[length] = c;
+        temp = realloc(temp, (length + 2) * sizeof(char));
+        length++;
+    }
+
+    input->body = temp;
+    input->contentLength = length;
+    input->contentType = contentType;
+
+    fclose(fp);
+    fp = NULL;
+
+    CSVR_FREE(path);
+
     return csvrSuccess;
 }

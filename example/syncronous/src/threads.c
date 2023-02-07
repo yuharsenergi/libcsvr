@@ -81,7 +81,7 @@ void *threadServer(void *arg)
         csvrRead(server, request);
         printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path, request->content ? request->content : "");
 
-        csvrAddContent(response, "{\"status\":\"OK\"}");
+        csvrAddContent(response, applicationJson, "{\"status\":\"OK\"}");
         csvrSendResponse(request, response);
         printf("[ >>> ] %s\n",response->body);
         csvrReadFinish(request, response);

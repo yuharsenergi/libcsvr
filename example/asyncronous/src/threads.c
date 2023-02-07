@@ -65,7 +65,7 @@ void *handlerGetUuid(csvrRequest_t *request, void *userData)
     CLEARSTRUCT(response);
     char *uuid = generateUuid();
     long total = csvrGetTotalConnection();
-    csvrAddContent(&response, "{\"id\":%d,\"totalConnection\":%ld,\"uuid\":\"%s\"}",session++, total, uuid);
+    csvrAddContent(&response, applicationJson,"{\"id\":%d,\"totalConnection\":%ld,\"uuid\":\"%s\"}",session++, total, uuid);
     FREE(uuid);
     
     csvrSendResponse(request, &response);
@@ -94,7 +94,11 @@ void *handlerTime(csvrRequest_t *request, void *userData)
     strftime(time_str, sizeof(time_str), "%y-%m-%d %H:%M:%S", d_tm);
     snprintf(time_str + strlen(time_str),sizeof(time_str), ".%lu",msec);
     usleep(300000);
-    csvrAddContent(&response,"{\"id\":%d,\"time\":\"%s\"}",session++,time_str);
+
+    csvrAddCustomHeader(&response,"header1","test/custom-header");
+    csvrAddCustomHeader(&response,"header2","random");
+
+    csvrAddContent(&response,applicationJson,"{\"id\":%d,\"time\":\"%s\"}",session++,time_str);
     csvrSendResponse(request, &response);
     printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);
@@ -106,13 +110,14 @@ void *handlerRequest(csvrRequest_t *request, void *userData)
     printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path,request->content ? request->content : "");
     csvrResponse_t response;
     CLEARSTRUCT(response);
+
     if(request->type == csvrTypePost)
     {
-        csvrAddContent(&response, "{\"id\":%d,\"request\":%s}", session,request->content ? request->content : "\"\"");
+        csvrAddContent(&response, applicationJson,"{\"id\":%d,\"request\":%s}", session,request->content ? request->content : "\"\"");
     }
     else
     {
-        csvrAddContent(&response, "{\"status\":\"ok\"}");
+        csvrAddContent(&response, applicationJson,"{\"status\":\"ok\"}");
     }
 
     csvrSendResponse(request, &response);
