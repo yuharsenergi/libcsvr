@@ -18,8 +18,6 @@
 #define EXAMPLE_NAME "asyscronousExample"
 #define EXAMPLE_VERSION "1.0"
 
-#define PORT 9000
-
 static csvrServer_t * server = NULL;
 
 int main(int arg,char**argv)
@@ -31,7 +29,7 @@ int main(int arg,char**argv)
         printf("Usage :\n");
         printf("    %s [port]\n", argv[0]);
         printf("Example :\n");
-        printf("    %s 8088\n\n", argv[0]);
+        printf("    %s 9000\n\n", argv[0]);
         return 1;
     }
 
@@ -53,7 +51,7 @@ int main(int arg,char**argv)
     server = csvrInit((uint16_t)port);
     if(server == NULL)
     {
-        printf("Failed initialize server at port:%u\n",PORT);
+        printf("Failed initialize server at port:%u\n",port);
         return 0;
     }
     printf("Success init server\n");

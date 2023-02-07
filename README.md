@@ -3,8 +3,8 @@
 ## Developer's Note
 
 Hi ! Thank you for visiting.  
-I haven't added any release yet cause I am currently working in this project by now.  
-But feel free to learn, and test this library.  
+I am currently working in this project by now.  
+Feel free to learn, and test this library.  
 
 ## Compilation Guide
 I am using autoconf compilation tools to create the shared library and static library. By default, you would probably take these steps for linux distribution which outputs will be installed inside the `/usr/lib` directory :
@@ -23,6 +23,11 @@ $ make
 $ make install
 ```
 
+If you want to use the TLS mode, you must define the environment variable `WITH_TLS` and the ssl link `-lssl` during configuring :
+```
+$ ./configure --prefix=/path/to/your/libcsvr/output/directory CPPFLAGS=-DWITH_TLS LDFLAGS=-lssl
+```
+
 ## Linking Guide
 You can check the linking example in the example `Makefile.am` file here:
 * [Asyncronous Makefile.am](./example/asyncronous/src/Makefile.am)
@@ -31,9 +36,9 @@ You can check the linking example in the example `Makefile.am` file here:
 
 ## How to Use
 You can check the example in the example below, all sources are provided in the `src` directory:
-* [Asyncronous](./example/asyncronous/src/)
-* [Syncronous](./example/syncronous/src/)
-* [Syncronous with TLS](./example/syncronous/src/)
+* [Asyncronous](./example/asyncronous/)
+* [Syncronous](./example/syncronous/)
+* [Syncronous with TLS](./example/syncronous/)
 
 ## WIKI Page
 

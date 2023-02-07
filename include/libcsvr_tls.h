@@ -28,6 +28,7 @@
 #ifndef LIBCSV_TLS_H
 #define LIBCSV_TLS_H
 
+#ifdef WITH_TLS
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
@@ -63,4 +64,5 @@ int csvrGenerateCertificate(char *name);
 #ifdef __cplusplus
 }
 #endif
+#endif  //end WITH_TLS
 #endif
