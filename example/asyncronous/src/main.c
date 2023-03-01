@@ -48,6 +48,7 @@ int main(int arg,char**argv)
         return 1;
     }
 
+    csvrSetMaxRequestAllowed(1000000);
     server = csvrInit((uint16_t)port);
     if(server == NULL)
     {
