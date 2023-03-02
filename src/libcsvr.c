@@ -669,24 +669,27 @@ CSVR_STATIC void *csvrProcessUserProcedureThreads(void *arg)
             {
                 csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
                 csvrReadFinish(data->request, NULL);
+                CSVR_FREE(data->request);
             }
         }
         else if(readStatus == csvrFailedReadSocket)
         {
             printf("\n[ERROR][ <<< ] Cannot read client socked: %s\n", strerror(errno));
             csvrReadFinish(data->request, NULL);
+            CSVR_FREE(data->request);
         }
         else if(readStatus == csvrNoContentLength)
         {
             csvrSendResponseError(data->request, csvrResponseLengthRequired, "Length Required");
             csvrReadFinish(data->request, NULL);
+            CSVR_FREE(data->request);
         }
         else
         {
             csvrSendResponseError(data->request, csvrResponseInternalServerError, "Internal Server Error");
             csvrReadFinish(data->request, NULL);
+            CSVR_FREE(data->request);
         }
-        CSVR_FREE(data->request);
         CSVR_FREE(data);
     } while (0);
 
