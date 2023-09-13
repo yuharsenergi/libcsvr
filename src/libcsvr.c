@@ -669,24 +669,27 @@ CSVR_STATIC void *csvrProcessUserProcedureThreads(void *arg)
             {
                 csvrSendResponseError(data->request, csvrResponseNotFound, "Not Found");
                 csvrReadFinish(data->request, NULL);
+                CSVR_FREE(data->request);
             }
         }
         else if(readStatus == csvrFailedReadSocket)
         {
             printf("\n[ERROR][ <<< ] Cannot read client socked: %s\n", strerror(errno));
             csvrReadFinish(data->request, NULL);
+            CSVR_FREE(data->request);
         }
         else if(readStatus == csvrNoContentLength)
         {
             csvrSendResponseError(data->request, csvrResponseLengthRequired, "Length Required");
             csvrReadFinish(data->request, NULL);
+            CSVR_FREE(data->request);
         }
         else
         {
             csvrSendResponseError(data->request, csvrResponseInternalServerError, "Internal Server Error");
             csvrReadFinish(data->request, NULL);
+            CSVR_FREE(data->request);
         }
-        CSVR_FREE(data->request);
         CSVR_FREE(data);
     } while (0);
 
@@ -802,7 +805,7 @@ CSVR_STATIC void *csvrAsyncronousThreads(void * arg)
         /** why the threads still not able to get the threadsData pointer inside csvrProcessUserProcedureThreads threads
          *  if this sleep not exists.
          */
-        USLEEP(200000);
+        USLEEP(3000);
 
     }
     threadsData->server->asyncFlag = false;
@@ -877,6 +880,15 @@ csvrServer_t *csvrInit(uint16_t port)
 
     server->path = NULL;
     return server;
+}
+
+csvrErrCode_e csvrSetMaxRequestAllowed(int maxConnection)
+{
+    if(maxConnection > 100)
+    {
+        _totalConnectionAllowed = maxConnection;
+    }
+    return csvrSuccess;
 }
 
 csvrErrCode_e csvrSetCustomServerName(csvrServer_t *server, char *serverName, ...)

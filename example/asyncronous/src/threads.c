@@ -58,6 +58,23 @@ char *generateUuid()
     return uuid;
 }
 
+char* printTime()
+{
+    time_t debug_time;
+    time(&debug_time);
+
+    struct timeval tv;
+    gettimeofday(&tv, NULL); // timezone should be NULL
+    struct tm *d_tm;
+    d_tm = localtime(&tv.tv_sec);
+    __suseconds_t msec = tv.tv_usec/1000;
+    static char time_str[30];
+    memset(time_str, 0x00, 24*sizeof(char));
+    strftime(time_str, sizeof(time_str), "%y-%m-%d %H:%M:%S", d_tm);
+    snprintf(time_str + strlen(time_str),sizeof(time_str), ".%03lu",msec);
+    return time_str;
+}
+
 void *handlerGetUuid(csvrRequest_t *request, void *userData)
 {
     printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path,request->content ? request->content : "");
@@ -71,6 +88,7 @@ void *handlerGetUuid(csvrRequest_t *request, void *userData)
     csvrSendResponse(request, &response);
     printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);
+    FREE(request);
 
     return NULL;
 }
@@ -92,7 +110,7 @@ void *handlerTime(csvrRequest_t *request, void *userData)
     char time_str[30];
     memset(time_str, 0x00, 24*sizeof(char));
     strftime(time_str, sizeof(time_str), "%y-%m-%d %H:%M:%S", d_tm);
-    snprintf(time_str + strlen(time_str),sizeof(time_str), ".%lu",msec);
+    snprintf(time_str + strlen(time_str),sizeof(time_str), ".%03lu",msec);
     usleep(300000);
 
     csvrAddCustomHeader(&response,"header1","test/custom-header");
@@ -102,12 +120,14 @@ void *handlerTime(csvrRequest_t *request, void *userData)
     csvrSendResponse(request, &response);
     printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);
+    FREE(request);
+
     return NULL;
 }
 
 void *handlerRequest(csvrRequest_t *request, void *userData)
 {
-    printf("[ <<< ] [%s][%s] %s\n",request->clientAddress, request->path,request->content ? request->content : "");
+    printf("[ <<< ] [%s][%s][%s] %s\n",printTime(), request->clientAddress, request->path,request->content ? request->content : "");
     csvrResponse_t response;
     CLEARSTRUCT(response);
 
@@ -123,6 +143,7 @@ void *handlerRequest(csvrRequest_t *request, void *userData)
     csvrSendResponse(request, &response);
     printf("[ >>> ] %s\n",response.body);
     csvrReadFinish(request, &response);
+    FREE(request);
 
     return NULL;
 }

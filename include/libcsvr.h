@@ -427,6 +427,16 @@ csvrErrCode_e csvrAddPath(csvrServer_t *server, char *path, csvrRequestType_e ty
  *************************************************************************************************************/
 long csvrGetTotalConnection();
 
+/************************************************************************************************************
+ * @brief Function to set maximum connection allowed during the runtime.
+ *        The value will set as the 2nd argument for listen() function.
+ *        This function must be called before calling csvrInit(). Otherwise, the default maximum connection
+ *        will be set 100.
+ * 
+ * @return This function always return csvrSuccess;
+ *************************************************************************************************************/
+csvrErrCode_e csvrSetMaxRequestAllowed(int maxConnection);
+
 #ifdef __cplusplus
 }
 #endif
